@@ -17,45 +17,53 @@ This HCMUS Computer Networking project will build a peer-to-peer (P2P) LAN chat 
 
 ## Project Structure
 
+
+## Project Structure
+
 ```text
 DoAnSocKet/
-├── lanchat/
-│   ├── __init__.py
-│   ├── __main__.py
-│   ├── app.py
-│   ├── config.py
-│   ├── discovery.py
-│   ├── peer_registry.py
-│   ├── connections.py
-│   ├── protocol.py
-│   ├── chat.py
-│   ├── transfer.py
-│   └── cli.py
-├── examples/
+├── lanchat/                     # Main Python application
+│   ├── __init__.py              # Python package initialization
+│   ├── __main__.py              # Application entry point
+│   ├── app.py                   # Application lifecycle and integration
+│   ├── config.py                # Network ports and configuration
+│   ├── discovery.py             # UDP discovery and heartbeat
+│   ├── peer_registry.py         # Online peers, status and timeout
+│   ├── connections.py           # TCP connection management
+│   ├── protocol.py              # Message framing and encoding
+│   ├── chat.py                  # Chat history and unread messages
+│   ├── transfer.py              # File transfer and progress
+│   └── cli.py                   # Commands and responsive terminal
+│
+├── examples/                    # Learning examples
 │   └── milestone_01/
-│       ├── .gitkeep
-│       ├── tcp_echo_server.py
-│       ├── tcp_echo_client.py
-│       ├── udp_receiver.py
-│       └── udp_sender.py
-├── tests/
-│   ├── .gitkeep
-│   ├── test_discovery.py
-│   ├── test_protocol.py
-│   ├── test_connections.py
-│   ├── test_chat.py
-│   └── test_transfer.py
-├── docs/
-│   ├── architecture.md
-│   ├── protocol_spec.md
-│   ├── requirements_matrix.md
-│   ├── test_evidence.md
-│   └── report/
+│       ├── .gitkeep             # Keep directory tracked by Git
+│       ├── tcp_echo_server.py   # TCP echo server exercise
+│       ├── tcp_echo_client.py   # TCP echo client exercise
+│       ├── udp_receiver.py      # UDP receiver exercise
+│       └── udp_sender.py        # UDP sender exercise
+│
+├── tests/                       # Automated tests
+│   ├── .gitkeep                 # Directory placeholder
+│   ├── test_discovery.py        # UDP discovery tests
+│   ├── test_protocol.py         # Protocol and framing tests
+│   ├── test_connections.py      # TCP connection tests
+│   ├── test_chat.py             # Chat functionality tests
+│   └── test_transfer.py         # File transfer tests
+│
+├── docs/                        # Technical documentation
+│   ├── architecture.md          # System architecture
+│   ├── protocol_spec.md         # Application protocol specification
+│   ├── requirements_matrix.md   # Requirements tracking
+│   ├── test_evidence.md         # Testing records and evidence
+│   └── report/                  # Final project report
 │       └── .gitkeep
-├── .gitignore
-├── README.md
-└── pyproject.toml
+│
+├── .gitignore                   # Files excluded from Git
+├── README.md                    # Project overview and instructions
+└── pyproject.toml               # Python project configuration
 ```
+
 
 `lanchat/` contains docstring/TODO placeholders for the future application. `examples/milestone_01/` holds independent learning exercise placeholders; `tests/` holds test-scope placeholders, not passing tests. `docs/` records the architecture, open protocol decisions, historical R01–R39 requirements, and future evidence. `docs/report/` is reserved for the final report. `.gitignore` excludes local artifacts, and `pyproject.toml` defines minimal project metadata. The two extra `.gitkeep` files preserve directories from the initial scaffold.
 
