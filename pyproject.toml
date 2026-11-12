@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lanchat-socket"
+version = "0.0.0"
+description = "HCMUS LAN Chat & File Sharing socket programming assignment (scaffold)"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[tool.setuptools.packages.find]
+include = ["lanchat*"]
