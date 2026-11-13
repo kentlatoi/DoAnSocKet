@@ -6,11 +6,11 @@ This HCMUS Computer Networking project will build a peer-to-peer (P2P) LAN chat 
 
 ## Planned Features
 
-**All application features are planned and not implemented yet.**
+The TCP protocol, connection manager, and chat-state slice are implemented on the TV2 feature branch. Discovery, CLI, file transfer, and full application integration remain planned until their feature branches are merged.
 
 - UDP discovery, periodic heartbeat, and online/away status.
-- Bidirectional TCP chat with multiple concurrent peers.
-- Per-peer chat history and unread notifications.
+- Bidirectional TCP chat transport with multiple concurrent peers. **Implemented and unit-tested on loopback.**
+- Per-peer chat history and unread notifications. **Implemented and unit-tested.**
 - TCP file transfer with percentage progress while chat remains responsive.
 - CLI that preserves typed input when messages arrive.
 - Connection and file error handling, plus safe shutdown.
@@ -98,7 +98,19 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-On Windows, activate with `.venv\Scripts\activate`. No third-party runtime dependencies are declared. Application run instructions will be added when the entry point is implemented and verified.
+On Windows, activate with `.venv\Scripts\activate`. No third-party runtime dependencies are declared. Run all current standard-library tests with:
+
+```sh
+python -m unittest discover -s tests -v
+```
+
+Run the Milestone 1 TCP echo server with:
+
+```sh
+python examples/milestone_01/tcp_echo_server.py --host 0.0.0.0 --port 9000
+```
+
+Application run instructions will be added when the integration entry point is implemented and verified.
 
 ## Testing Plan
 
@@ -110,4 +122,4 @@ Use **feature branch → small commits → Pull Request → review → merge to 
 
 ## Project Status
 
-**Phase 0 — Repository Structure Setup.** The repository contains documentation and placeholders only. Official application requirements remain **Unverified**, no milestone is complete, and no application or network tests have been run.
+**TCP Chat feature development.** TV2's protocol, connection, chat-state, tests, technical documentation, and echo-server exercise are implemented. Automated loopback is development evidence only; final two-computer LAN and Wireshark verification are still required.
