@@ -1,4 +1,5 @@
-"""Centralize future network and application configuration."""
+"""Shared defaults for UDP presence; callers may choose another common port."""
 
-# TODO: Define configurable TCP and shared UDP ports.
-# TODO: Define heartbeat, peer timeout, and downloads path settings.
+UDP_PORT = 9999
+HEARTBEAT_SECONDS = 3
+PEER_TIMEOUT_SECONDS = 10

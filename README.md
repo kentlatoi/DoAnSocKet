@@ -6,13 +6,13 @@ This HCMUS Computer Networking project will build a peer-to-peer (P2P) LAN chat 
 
 ## Planned Features
 
-**All application features are planned and not implemented yet.**
+**TV1 UDP discovery and CLI components are implemented; the full application is not integrated yet.**
 
-- UDP discovery, periodic heartbeat, and online/away status.
+- UDP discovery, periodic heartbeat, and online/away status (TV1 component implemented).
 - Bidirectional TCP chat with multiple concurrent peers.
 - Per-peer chat history and unread notifications.
 - TCP file transfer with percentage progress while chat remains responsive.
-- CLI that preserves typed input when messages arrive.
+- CLI that preserves typed input when messages arrive (TV1 component implemented; TCP/file callbacks pending).
 - Connection and file error handling, plus safe shutdown.
 
 ## Project Structure
@@ -98,7 +98,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 ```
 
-On Windows, activate with `.venv\Scripts\activate`. No third-party runtime dependencies are declared. Application run instructions will be added when the entry point is implemented and verified.
+On Windows, activate with `.venv\Scripts\activate`, then run `python -m pip install -e .`. The CLI uses `prompt_toolkit` only to preserve typed input during concurrent output; networking uses Python's `socket` module. Application run instructions await TV2/TV3 integration.
+
+TV1 UDP examples: run `python examples/milestone_01/udp_receiver.py` in one terminal, then `python examples/milestone_01/udp_sender.py` in another. Stop the receiver with Ctrl+C. Run TV1 tests with `python -m unittest discover -s tests -p 'test_*.py' -v`. On this macOS test host, `255.255.255.255` worked for local broadcast, while `127.255.255.255` did not; real LAN behavior still needs two-computer verification.
+
+For a TV1-only interactive demo, run `python -m examples.milestone_01.tv1_discovery_demo --name A --tcp-port 5001` and a second terminal with `--name B --tcp-port 5002`. Add `--name C --tcp-port 5003` for three peers. This does not open TCP listeners or transfer files.
+
+The future application coordinator should create `PeerRegistry(on_event=...)`, `Discovery(name, tcp_port, registry, peer_id=shared_id)`, and `CLI(registry, discovery, on_chat=..., on_send=..., on_leave=..., on_text=..., on_quit=...)`. Use the **same** `shared_id` for TV2's `ConnectionManager`; alternatively use the generated `discovery.peer_id` when constructing that manager. `on_chat` receives a `Peer` with IP, TCP port and peer ID; `on_send` receives a file path; `on_text` receives a chat line. Feed UDP online/offline, TV2 unread, and TV3 progress messages to `CLI.notify(message)`. Start discovery before `CLI.run()` and call `Discovery.stop()` during shutdown. Until callbacks are connected, those commands report that the backend is unavailable.
 
 ## Testing Plan
 

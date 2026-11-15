@@ -18,7 +18,7 @@ Each candidate needs a decision on UDP presence fields, protocol version, file m
 
 | Topic | Decision | Rationale and test evidence |
 | --- | --- | --- |
-| UDP presence schema and port | Open | — |
+| UDP presence schema and port | `HELLO|<name>|<tcp_port>|<online\|away>|<peer_id>` UTF-8, maximum 512 bytes; shared UDP port 9999 by default | TV1 adds a per-process ID for TV2's TCP HELLO identity. The PDF's four-field illustrative form is also accepted. Packet source supplies IP; peers are keyed by (IP, TCP port). |
 | TCP frame header, type, length, and limits | Open | — |
 | UTF-8 and binary payload rules | Open | — |
 | File stream, progress, acknowledgements | Open | — |
