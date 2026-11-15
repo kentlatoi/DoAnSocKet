@@ -1,91 +1,113 @@
-# LAN Chat & File Sharing
+# LAN Chat & File Sharing — Socket Programming
 
-Đồ án Mạng máy tính HCMUS sử dụng Python 3 và native Socket API. Mỗi máy vừa là TCP server vừa là TCP client; UDP dùng để tìm peer, TCP dùng để chat và truyền file.
+## Project Overview
 
-## Trạng thái hiện tại
+This HCMUS Computer Networking project will build a peer-to-peer (P2P) LAN chat and file-sharing application. Each peer will both accept and initiate connections. The planned implementation uses Python 3 and its native `socket` API: UDP for peer discovery and presence, and TCP for messages and file transfer. The assignment develops practical understanding of TCP and UDP, concurrent programming, application-layer protocols, error handling, and LAN verification.
 
-Phần của **TV2 (`@thanhhuong107`)** đã được triển khai trên nhánh `feat/tcp-chat` và đang chờ review tại [PR #4](https://github.com/kentlatoi/DoAnSocKet/pull/4).
+## Planned Features
 
-Nếu đang xem nhánh `main`, bạn chưa thấy code TV2 vì PR chưa được merge. Chuyển sang đúng nhánh bằng:
+**All application features are planned and not implemented yet.**
 
-```sh
-git fetch origin
-git switch feat/tcp-chat
-```
+- UDP discovery, periodic heartbeat, and online/away status.
+- Bidirectional TCP chat with multiple concurrent peers.
+- Per-peer chat history and unread notifications.
+- TCP file transfer with percentage progress while chat remains responsive.
+- CLI that preserves typed input when messages arrive.
+- Connection and file error handling, plus safe shutdown.
 
-## Code TV2 nằm ở đâu?
+## Project Structure
 
-| File | Nội dung |
-| --- | --- |
-| `lanchat/protocol.py` | Header TCP, message framing, đọc đúng số byte, UTF-8 JSON và kiểm tra frame lỗi |
-| `lanchat/connections.py` | `bind/listen/accept/connect`, nhiều peer, HELLO handshake, ngắt kết nối và kết nối trùng |
-| `lanchat/chat.py` | Gửi/nhận chat, history theo peer, current chat và unread count có lock |
-| `tests/test_protocol.py` | Test frame bị chia nhỏ, nhiều frame cùng lúc, UTF-8 và frame lỗi |
-| `tests/test_connections.py` | Test full-duplex, multi-peer, connect đồng thời, refused và disconnect |
-| `tests/test_chat.py` | Test history, unread và thread safety |
-| `examples/milestone_01/tcp_echo_server.py` | TCP Echo Server của Milestone 1 |
 
-Các file `.md` trong `docs/` là tài liệu bắt buộc của đồ án, không thay thế source code:
-
-- `docs/protocol_spec.md`: định dạng protocol để TV1/TV3 tích hợp.
-- `docs/architecture.md`: mô hình connection và shared state.
-- `docs/test_evidence.md`: kết quả test đã chạy.
-
-## Luồng TCP Chat
-
-1. Peer A lấy IP và TCP port của Peer B từ module discovery của TV1.
-2. A gọi `ConnectionManager.connect(ip, port)`.
-3. Hai bên trao đổi frame `HELLO` chứa `peer_id` và tên.
-4. `ChatManager.send_message()` đóng gói nội dung thành frame `CHAT`.
-5. Worker nhận frame lưu history; nếu không phải current chat thì tăng unread count.
-6. Khi socket đóng hoặc lỗi, connection bị xóa và callback disconnect được gọi.
-
-Frame TCP có header cố định 10 byte:
+## Project Structure
 
 ```text
-4 byte magic "LCHT" | 1 byte version | 1 byte type | 4 byte payload length
+DoAnSocKet/
+├── lanchat/                     # Main Python application
+│   ├── __init__.py              # Python package initialization
+│   ├── __main__.py              # Application entry point
+│   ├── app.py                   # Application lifecycle and integration
+│   ├── config.py                # Network ports and configuration
+│   ├── discovery.py             # UDP discovery and heartbeat
+│   ├── peer_registry.py         # Online peers, status and timeout
+│   ├── connections.py           # TCP connection management
+│   ├── protocol.py              # Message framing and encoding
+│   ├── chat.py                  # Chat history and unread messages
+│   ├── transfer.py              # File transfer and progress
+│   └── cli.py                   # Commands and responsive terminal
+│
+├── examples/                    # Learning examples
+│   └── milestone_01/
+│       ├── .gitkeep             # Keep directory tracked by Git
+│       ├── tcp_echo_server.py   # TCP echo server exercise
+│       ├── tcp_echo_client.py   # TCP echo client exercise
+│       ├── udp_receiver.py      # UDP receiver exercise
+│       └── udp_sender.py        # UDP sender exercise
+│
+├── tests/                       # Automated tests
+│   ├── .gitkeep                 # Directory placeholder
+│   ├── test_discovery.py        # UDP discovery tests
+│   ├── test_protocol.py         # Protocol and framing tests
+│   ├── test_connections.py      # TCP connection tests
+│   ├── test_chat.py             # Chat functionality tests
+│   └── test_transfer.py         # File transfer tests
+│
+├── docs/                        # Technical documentation
+│   ├── architecture.md          # System architecture
+│   ├── protocol_spec.md         # Application protocol specification
+│   ├── requirements_matrix.md   # Requirements tracking
+│   ├── test_evidence.md         # Testing records and evidence
+│   └── report/                  # Final project report
+│       └── .gitkeep
+│
+├── .gitignore                   # Files excluded from Git
+├── README.md                    # Project overview and instructions
+└── pyproject.toml               # Python project configuration
 ```
 
-Chi tiết nằm trong `docs/protocol_spec.md`.
 
-## Chạy test
+`lanchat/` contains docstring/TODO placeholders for the future application. `examples/milestone_01/` holds independent learning exercise placeholders; `tests/` holds test-scope placeholders, not passing tests. `docs/` records the architecture, open protocol decisions, historical R01–R39 requirements, and future evidence. `docs/report/` is reserved for the final report. `.gitignore` excludes local artifacts, and `pyproject.toml` defines minimal project metadata. The two extra `.gitkeep` files preserve directories from the initial scaffold.
 
-Yêu cầu Python 3.10 trở lên, không có thư viện runtime bên ngoài.
+## Team Responsibilities
+
+| Member | GitHub | Responsibility |
+| --- | --- | --- |
+| Member 1 | [@kentlatoi](https://github.com/kentlatoi) | UDP Discovery, Peer State & Responsive CLI |
+| Member 2 | [@thanhhuong107](https://github.com/thanhhuong107) | TCP Chat, Connections & Application Protocol |
+| Member 3 | [@phkhoiit-1508](https://github.com/phkhoiit-1508) | File Transfer, Error Handling & Integration |
+
+All members share testing, documentation, code review, Wireshark evidence, and oral-defense preparation.
+
+## Development Milestones
+
+These are the official assignment checkpoints; none is complete.
+
+1. **M1 — TCP Echo and UDP Send/Receive:** demonstrate both learning exercises.
+2. **M2 — UDP Discovery and Online Status:** show peers appearing and disappearing on at least two machines.
+3. **M3 — TCP Chat and Protocol Framing:** demonstrate two-way chat, `/chat`, `/leave`, and concurrent receiving.
+4. **M4 — Responsive CLI and File Transfer:** preserve typed input and transfer a file while chatting.
+5. **M5 — Testing, Error Handling, Report and Demo:** complete fault handling, Wireshark evidence, report, and live demo.
+
+## Getting Started
+
+Install Python 3.10 or newer, then clone the repository and create a virtual environment:
 
 ```sh
-python3 -m unittest discover -s tests -v
+git clone https://github.com/kentlatoi/DoAnSocKet.git
+cd DoAnSocKet
+python3 -m venv .venv
+source .venv/bin/activate
 ```
 
-Kết quả hiện tại: **16 test pass** trên loopback.
+On Windows, activate with `.venv\Scripts\activate`. No third-party runtime dependencies are declared. Application run instructions will be added when the entry point is implemented and verified.
 
-Kiểm tra format/lint nếu máy đã có Ruff và Black:
+## Testing Plan
 
-```sh
-ruff check lanchat tests examples/milestone_01
-black --check lanchat tests examples/milestone_01
-```
+Future checks will cover unit behavior, localhost and multi-process runs, two-computer LAN operation, Wireshark UDP/TCP evidence, and failure cases. Results will be recorded in `docs/test_evidence.md`; placeholder test files do not establish passing results.
 
-## Chạy TCP Echo Server
+## Collaboration
 
-```sh
-python3 examples/milestone_01/tcp_echo_server.py --host 0.0.0.0 --port 9000
-```
+Use **feature branch → small commits → Pull Request → review → merge to `main`**. Planned branches are `feat/udp-discovery`, `feat/tcp-chat`, and `feat/file-cli`; create them from the latest merged `main` when work begins.
 
-Server nhận byte từ TCP client và gửi lại đúng dữ liệu đó. Nhấn `Ctrl+C` để dừng.
+## Project Status
 
-## Phân công nhóm
-
-| Thành viên | Phần phụ trách |
-| --- | --- |
-| TV1 — `@kentlatoi` | UDP Discovery, Peer Registry, CLI |
-| TV2 — `@thanhhuong107` | TCP Connection, Chat, Application Protocol |
-| TV3 — `@phkhoiit-1508` | File Transfer, Error Handling, tích hợp ứng dụng |
-
-## Chưa có trên nhánh TV2
-
-Để tránh làm quá phạm vi, nhánh này **không** triển khai UDP discovery, CLI, file transfer hoặc `app.py`. Những phần đó do TV1/TV3 thực hiện và sẽ được tích hợp sau.
-
-Hai việc vẫn cần kiểm tra thủ công trước khi nộp:
-
-- Chạy trên hai máy cùng LAN.
-- Chụp TCP three-way handshake bằng Wireshark.
+**Phase 0 — Repository Structure Setup.** The repository contains documentation and placeholders only. Official application requirements remain **Unverified**, no milestone is complete, and no application or network tests have been run.
