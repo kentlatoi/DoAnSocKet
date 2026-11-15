@@ -51,10 +51,10 @@ class ProtocolTests(unittest.TestCase):
         reader, writer = socket.socketpair()
         try:
             writer.sendall(
-                encode_frame(MessageType.PING)
+                encode_frame(MessageType.CHAT, b"first")
                 + encode_frame(MessageType.CHAT, b"second")
             )
-            self.assertEqual(recv_frame(reader).message_type, MessageType.PING)
+            self.assertEqual(recv_frame(reader).payload, b"first")
             self.assertEqual(recv_frame(reader).payload, b"second")
         finally:
             reader.close()

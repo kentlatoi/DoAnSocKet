@@ -1,6 +1,6 @@
 # Test evidence ledger
 
-**Phase 0:** No application tests have been run by this setup task. Add a separate record for each executed test; do not mark a planned test as passed.
+Records below only claim checks that were actually run. Loopback evidence does not replace the required two-computer LAN test.
 
 ## Blank record template
 

@@ -13,11 +13,11 @@
 | R07 | Xóa peer nếu không nghe presence trong 10 giây | p1 §3.1 | M | Unverified |
 | R08 | Thông báo peer online/offline | p1 §3.1 | M | Unverified |
 | R09 | Status `online`/`away` được broadcast và hiển thị | pp1–2 §3.2 | M | Unverified |
-| R10 | Chọn peer online và mở TCP connection tới endpoint đã discover | p2 §3.3 | M | TCP endpoint API verified on loopback; registry/CLI integration pending |
-| R11 | Chat TCP full-duplex; mỗi bên gửi bất kỳ lúc nào | p2 §3.3 | M | Verified by automated loopback test |
+| R10 | Chọn peer online và mở TCP connection tới endpoint đã discover | p2 §3.3 | M | Unverified |
+| R11 | Chat TCP full-duplex; mỗi bên gửi bất kỳ lúc nào | p2 §3.3 | M | Unverified |
 | R12 | Incoming message hiển thị ngay khi người dùng đang nhập | pp2–3 §3.3, §4.3 | M | Unverified |
-| R13 | Tin từ non-current peer được giữ trong per-peer history | p2 §3.3 | M | Verified by automated state test |
-| R14 | Hiển thị notification và unread count cho non-current conversation | pp2–3 §3.3, example session | M | Event/count interface verified; CLI rendering pending |
+| R13 | Tin từ non-current peer được giữ trong per-peer history | p2 §3.3 | M | Unverified |
+| R14 | Hiển thị notification và unread count cho non-current conversation | pp2–3 §3.3, example session | M | Unverified |
 | R15 | Gửi file cho current partner | p2 §3.4 | M | Unverified |
 | R16 | Hiển thị file-transfer progress theo phần trăm | p2 §3.4 | M | Unverified |
 | R17 | File nhận được lưu trong `downloads/` | p2 §3.4 | M | Unverified |
@@ -26,20 +26,20 @@
 | R20 | Nếu dùng CLI, incoming output không làm mất text đang gõ; prompt/input được redraw | p3 §4.3 | M for CLI | Unverified |
 | R21 | Threaded CLI output được đồng bộ bằng lock | p3 §4.3 | M for threaded CLI | Unverified |
 | R22 | Dùng multithreading hoặc concurrency phù hợp như `select/poll` | p1 objectives; p4 §5.1 | M | Unverified |
-| R23 | Bảo vệ online list, histories và unread counters bằng synchronization | p4 §5.1 | M | TV2 connection/history/unread state verified; online registry pending TV1 |
-| R24 | Nhóm tự thiết kế application-layer protocol | p4 §5.2 | M | Version 1 implemented; team review required before merge |
-| R25 | TCP protocol có correct message framing | p1 objectives; p4 §5.2 | M | Verified for fragmented and combined frames |
-| R26 | Receiver lặp đến đúng declared `length`/`size` bytes | p4 §5.2 | M | Verified for header/payload fragmentation and incomplete close |
-| R27 | Phát hiện peer close/crash, thông báo và trả UI/prompt về trạng thái dùng được | p4 §5.3 | M | Disconnect event verified; UI recovery pending TV1/TV3 integration |
-| R28 | Connect tới stale/offline peer báo lỗi và không crash | p4 §5.3 | M | Connection refusal verified by automated loopback test |
+| R23 | Bảo vệ online list, histories và unread counters bằng synchronization | p4 §5.1 | M | Unverified |
+| R24 | Nhóm tự thiết kế application-layer protocol | p4 §5.2 | M | Unverified |
+| R25 | TCP protocol có correct message framing | p1 objectives; p4 §5.2 | M | Unverified |
+| R26 | Receiver lặp đến đúng declared `length`/`size` bytes | p4 §5.2 | M | Unverified |
+| R27 | Phát hiện peer close/crash, thông báo và trả UI/prompt về trạng thái dùng được | p4 §5.3 | M | Unverified |
+| R28 | Connect tới stale/offline peer báo lỗi và không crash | p4 §5.3 | M | Unverified |
 | R29 | Missing/interrupted file báo lỗi; partial received file bị xóa | p4 §5.3 | M | Unverified |
 | R30 | Invalid command hiển thị trợ giúp ngắn | p4 §5.3 | M for CLI; equivalent validation for GUI | Unverified |
 | R31 | Nộp source code và README với install/run/test instructions | p5 §7.1 | M | Unverified |
 | R32 | Nộp report 5–10 pages | p5 §7.2 | M | Unverified |
 | R33 | Wireshark evidence cho UDP broadcast và TCP three-way handshake, kèm giải thích | p5 §7.3 | M | Unverified |
 | R34 | Live demo 10 phút trên ít nhất hai computers | p5 §7.4 | M | Unverified |
-| R35 | Shutdown giải phóng connections/threads hợp lý | p1 objectives; p4 error/lifecycle context; `/quit` p2 | M for stability/lifecycle | TCP listener/peer cleanup verified; application shutdown pending TV3 |
-| R36 | Hỗ trợ multiple simultaneous peers/connections | pp1–2 objectives, §3.3; p5 rubric | M | Verified by three-peer automated loopback test |
+| R35 | Shutdown giải phóng connections/threads hợp lý | p1 objectives; p4 error/lifecycle context; `/quit` p2 | M for stability/lifecycle | Unverified |
+| R36 | Hỗ trợ multiple simultaneous peers/connections | pp1–2 objectives, §3.3; p5 rubric | M | Unverified |
 | R37 | Console hoặc GUI đều được chấp nhận | p1 General information; p5 rubric | A | Unverified |
 | R38 | Team size 2–3 students | p1 General information | M administrative | Unverified |
 | R39 | Có thể chạy trên ≥2 computers cùng LAN/Wi-Fi hoặc multiple local instances khi phát triển; final demo vẫn theo R34 | p1 Environment; p5 §7.4 | A environment; R34 final mandatory | Unverified |

@@ -27,7 +27,6 @@ The receiver loops until all 10 header bytes and all declared payload bytes have
 | 5 | `FILE_END` | JSON | TV3: completion/integrity result |
 | 6 | `LEAVE` | JSON or empty | Conversation control |
 | 7 | `ERROR` | JSON | Recoverable application error |
-| 8 | `PING` | empty | Optional liveness check |
 
 Structured payloads are compact UTF-8 JSON objects. Length always counts encoded bytes, not Python characters. Binary file chunks are not JSON or UTF-8 decoded.
 

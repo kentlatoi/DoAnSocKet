@@ -30,7 +30,6 @@ class MessageType(IntEnum):
     FILE_END = 5
     LEAVE = 6
     ERROR = 7
-    PING = 8
 
 
 class ProtocolError(ValueError):
