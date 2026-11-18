@@ -4,7 +4,7 @@ import time
 import unittest
 
 from lanchat.connections import ConnectionManager, NotConnectedError
-from lanchat.protocol import MessageType
+from lanchat.protocol import ConnectionClosed, MessageType, ProtocolError
 
 
 def wait_until(predicate, timeout: float = 2.0) -> None:
@@ -145,6 +145,51 @@ class ConnectionManagerTests(unittest.TestCase):
             alice.connect("127.0.0.1", unused_port)
 
         self.assertEqual(alice.connected_peers(), [])
+
+    def test_expected_peer_id_accepts_matching_hello(self) -> None:
+        alice = self.manager("alice")
+        bob = self.manager("bob")
+
+        connection = alice.connect("127.0.0.1", bob.port, expected_peer_id="bob")
+
+        self.assertEqual(connection.peer_id, "bob")
+        self.assertEqual(alice.connected_peers(), ["bob"])
+
+    def test_expected_peer_id_rejects_mismatch_and_closes_socket(self) -> None:
+        alice = self.manager("alice")
+        bob = self.manager("bob")
+        disconnected = []
+        bob.add_disconnect_handler(lambda peer_id, error: disconnected.append(peer_id))
+
+        with self.assertRaisesRegex(ProtocolError, "expected peer 'carol', received 'bob'"):
+            alice.connect("127.0.0.1", bob.port, expected_peer_id="carol")
+
+        self.assertEqual(alice.connected_peers(), [])
+        self.assertIsNone(alice.get_connection("bob"))
+        wait_until(lambda: disconnected == ["alice"])
+        self.assertEqual(bob.connected_peers(), [])
+
+    def test_peer_closes_during_hello_without_registration(self) -> None:
+        alice = self.manager("alice")
+        listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+
+        def close_during_hello() -> None:
+            connection, _ = listener.accept()
+            connection.close()
+            listener.close()
+
+        thread = threading.Thread(target=close_during_hello)
+        thread.start()
+        try:
+            with self.assertRaises((ConnectionClosed, OSError)):
+                alice.connect("127.0.0.1", port, expected_peer_id="bob")
+            self.assertEqual(alice.connected_peers(), [])
+        finally:
+            thread.join(timeout=2)
+            listener.close()
 
 
 if __name__ == "__main__":

@@ -119,7 +119,9 @@ class ConnectionManager:
             self._spawn(self._accept_loop, "tcp-accept")
             return self.port
 
-    def connect(self, host: str, port: int) -> PeerConnection:
+    def connect(
+        self, host: str, port: int, expected_peer_id: str | None = None
+    ) -> PeerConnection:
         """Connect to a discovered endpoint and complete the HELLO handshake."""
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -130,6 +132,10 @@ class ConnectionManager:
             peer_id, peer_name = self._parse_hello(recv_frame(sock))
             if peer_id == self.peer_id:
                 raise ProtocolError("refusing a connection to this peer")
+            if expected_peer_id is not None and peer_id != expected_peer_id:
+                raise ProtocolError(
+                    f"expected peer {expected_peer_id!r}, received {peer_id!r}"
+                )
             sock.settimeout(None)
             candidate = PeerConnection(
                 peer_id, peer_name, sock, (host, port), outgoing=True
