@@ -1,56 +1,61 @@
 # LAN Chat & File Sharing
 
-HCMUS Computer Networking project: a peer-to-peer LAN chat and file-sharing application using Python 3 and native UDP/TCP sockets.
+Python 3 peer-to-peer LAN chat. UDP broadcasts presence; TCP carries framed chat messages and files. Each instance listens and can connect to other peers. The terminal uses `prompt_toolkit` to preserve partially typed input when notifications arrive.
 
-## Current status
+## Install
 
-| Component | Status |
-| --- | --- |
-| UDP discovery, online/away presence, peer registry | Implemented and tested locally |
-| Responsive CLI command handling | Implemented and tested locally |
-| TCP connections, chat history/unread, protocol v1 | Implemented as modules and tested locally |
-| File transfer, application coordinator and runnable chat entry point | Pending TV3 integration |
-| Two-computer LAN demo and Wireshark evidence | Pending |
-
-`python -m lanchat` still runs a placeholder entry point; it does not start the chat application. See [TV1/TV2 integration handoff](docs/TV1_TV2_INTEGRATION_HANDOFF.md) and [protocol specification](docs/protocol_spec.md).
-
-## Install and test
-
-Python 3.10 or newer is required. From the repository root:
+Requires Python 3.10+ and `prompt_toolkit` 3.x.
 
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -e .
-python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-On Windows, activate with `.venv\Scripts\activate` and use `python` for the commands. Socket tests require permission to bind local ports. Multi-instance UDP tests skip when `SO_REUSEPORT` is unavailable; the required two-computer LAN demo remains a separate check.
+On Windows activate with `.venv\Scripts\activate` and use `python` in place of `python3`. Windows operation has not been verified.
 
-## Independent network examples
+## Run
 
-Run each pair in separate terminals:
+On two LAN computers, run the same command with distinct names. TCP port `0` selects a free port and advertises the actual value. The UDP port must match on all peers (default 9999).
 
 ```sh
-python examples/milestone_01/udp_receiver.py
-python examples/milestone_01/udp_sender.py
-
-python examples/milestone_01/tcp_echo_server.py --host 127.0.0.1 --port 19090 --once
+python3 -m lanchat --name Quan --port 5001
+python3 -m lanchat --name Minh --port 5002
 ```
 
-For a discovery-only interactive demo, start two terminals with different names and TCP ports:
+A third peer can use `--name Lan --port 5003`. Multiple local instances require OS support for UDP port sharing. Received files appear in `downloads/` relative to the process working directory. Existing names receive a numbered suffix and are never overwritten.
+
+| Command | Action |
+| --- | --- |
+| `/list` | Show discovered peers |
+| `/chat <name\|number>` | Select and connect to a peer |
+| ordinary text | Send to selected peer |
+| `/send <file>` | Send a file to selected peer |
+| `/leave` | Leave the conversation; retain TCP connections |
+| `/status <online\|away>` | Change UDP presence |
+| `/help` | Show commands |
+| `/quit` | Stop networking and exit |
+
+Legacy UDP peers without a peer ID appear in `/list`, but verified TCP chat with them is refused. File sending uses 64 KiB frames, a worker thread, SHA-256 verification and receiver acknowledgement. See [protocol specification](docs/protocol_spec.md).
+
+## Test and troubleshoot
 
 ```sh
-python -m examples.milestone_01.tv1_discovery_demo --name A --tcp-port 5001
-python -m examples.milestone_01.tv1_discovery_demo --name B --tcp-port 5002
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+python3 -m compileall -q lanchat examples/milestone_01 tests
 ```
 
-The TCP echo client exercise is still a placeholder; connect to the echo server with a TCP client. The discovery demo does not open TCP listeners or transfer files. On a real LAN, firewall and broadcast behavior must be checked on the target machines.
+Tests that bind sockets need local network permission. If peers do not appear, confirm that both machines use the same UDP port and LAN, allow Python through the firewall, and check whether the network permits broadcasts. A stale peer may remain listed for up to ten seconds. If TCP connect fails, confirm the advertised port is reachable. A sender reports verified completion only after the receiver saves and acknowledges the file; failure or interruption removes the `.part` file.
 
-## Team responsibilities
+## Milestone echo example
 
-- TV1 (`kentlatoi`): UDP discovery, peer registry, responsive CLI.
-- TV2 (`thanhhuong107`): TCP connections, chat, application protocol.
-- TV3 (`phkhoiit-1508`): file transfer, application integration and shared error handling.
+In separate terminals:
 
-All members share testing, documentation, Wireshark evidence and the final demo.
+```sh
+python3 examples/milestone_01/tcp_echo_server.py --host 127.0.0.1 --port 19090 --once
+python3 examples/milestone_01/tcp_echo_client.py --port 19090 'Xin chào'
+```
+
+## Remaining validation
+
+The automated suite covers local sockets. A two-computer LAN run, Windows run, terminal redraw during integrated chat/file events, and genuine Wireshark screenshots remain to be completed. See [test evidence](docs/test_evidence.md) and [demo script](docs/FINAL_DEMO_SCRIPT.md).

@@ -1,6 +1,6 @@
 # TV1/TV2 integration handoff for TV3
 
-The modules below work independently. `app.py`, `__main__.py`, and `transfer.py` are placeholders. This is a coordinator plan, not an end-to-end test result. TCP identity validation is proposed in PR #6; merge that PR before using its third `connect()` argument.
+Historical TV1/TV2 handoff: `app.py`, `__main__.py`, and `transfer.py` have since been implemented on the TV3 branch. PR #6 and #7 appear as merge commits on the local `main`. See the current README, protocol specification and test evidence for the integrated state.
 
 ## Public APIs and startup
 

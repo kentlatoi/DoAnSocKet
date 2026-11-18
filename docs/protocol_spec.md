@@ -1,6 +1,6 @@
 # Application protocol specification — version 1
 
-**Status:** TCP v1 and UDP discovery were merged in PRs #4 and #5. Application coordination and file transfer are not yet integrated.
+**Status:** TCP v1, UDP discovery, application coordination and file transfer are implemented. Physical LAN verification remains pending.
 
 ## UDP presence
 
@@ -65,13 +65,16 @@ Both fields are required non-empty strings. Discovery must provide the same `pee
 
 `text` and `sent_at` are required non-empty strings. `sender` is a display value; routing and history use the `peer_id` stated in the TCP `HELLO`, subject to coordinator verification against discovery.
 
-### File-transfer contract for TV3
+### File-transfer contract
 
-The shared message types intentionally leave file policy in `transfer.py`. Recommended v1 payloads are:
+One transfer per direction per TCP connection is supported:
 
 - `FILE_META`: `{"transfer_id":"...","name":"safe-name","size":123}`
 - `FILE_CHUNK`: raw chunks no larger than 64 KiB
-- `FILE_END`: `{"transfer_id":"...","sha256":"..."}` marks the end of the sender's chunks. The receiver checks the byte count against `FILE_META.size` and the SHA-256 hash against `FILE_END.sha256` before accepting the file. Acknowledgement policy awaits TV3 approval.
+- `FILE_END`: `{"transfer_id":"...","sha256":"..."}` marks the end of sender chunks. The receiver validates the byte count and SHA-256, saves the file, then responds with `FILE_END` `{"transfer_id":"...","status":"ok"}`. These two forms have distinct sender/receiver meanings.
+- `ERROR`: `{"transfer_id":"...","error":"reason"}` rejects a transfer, including a size or checksum mismatch. A broken TCP connection also aborts the transfer. The sender reports verified completion only after matching acknowledgement; otherwise it reports failure or a 30-second acknowledgement timeout.
+
+Incoming files are written to a temporary `.part` file under `downloads/`, then linked to an unused destination name. Existing files get a numbered suffix. Partial files are deleted on interrupted or rejected transfers. A receiver rejects names containing path separators or control characters.
 
 Only one file transfer per direction may be active on a TCP connection. `ConnectionManager.send()` locks one complete frame at a time; CHAT frames may interleave with file chunks without corrupting the stream. The receiver routes message types to registered handlers.
 
@@ -91,4 +94,4 @@ If two peers connect at the same time, the lower lexical `peer_id` keeps its out
 - A single payload is limited to 8 MiB; files must be chunked.
 - Unknown types and unsupported versions are protocol errors.
 - JSON is restricted to an object at the top level.
-- File names, paths, collision handling, and partial cleanup remain TV3 responsibilities.
+- File names, paths, collision handling, and partial cleanup are handled in `transfer.py`.

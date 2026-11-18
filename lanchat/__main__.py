@@ -1,12 +1,20 @@
-"""Future command-line entry point.
+"""Run one LAN chat peer."""
 
-Phase 0 contains repository scaffolding only. Networking and CLI behavior will be
-added during later, mentored milestones.
-"""
+import argparse
+
+from .app import Application
 
 
 def main() -> None:
-    print("LAN Chat & File Sharing is not implemented yet (Phase 0).")
+    parser = argparse.ArgumentParser(description="LAN Chat & File Sharing")
+    parser.add_argument("--name", default="Peer", help="display name")
+    parser.add_argument("--port", type=int, default=0, help="TCP listening port (0 chooses one)")
+    parser.add_argument("--udp-port", type=int, default=9999, help="shared UDP discovery port")
+    args = parser.parse_args()
+    try:
+        Application(args.name, args.port, args.udp_port).run()
+    except (OSError, ValueError) as error:
+        parser.exit(1, f"Cannot start LAN Chat: {error}\n")
 
 
 if __name__ == "__main__":
