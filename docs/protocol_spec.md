@@ -1,6 +1,18 @@
 # Application protocol specification — version 1
 
-**Status:** Implemented on `feat/tcp-chat`; team review is required before merge because discovery and file transfer consume this interface.
+**Status:** TCP v1 was merged in PR #4. UDP discovery is in PR #5; application coordination and file transfer are not yet integrated.
+
+## UDP presence
+
+Discovery broadcasts a UTF-8 datagram of at most 512 bytes on shared UDP port 9999 by default:
+
+```text
+HELLO|name|tcp_port|status|peer_id
+```
+
+`status` is `online` or `away`. A heartbeat is sent every 3 seconds, and registry entries expire after 10 seconds without an update. The datagram's source IP and advertised TCP port form the registry key `(source_ip, tcp_port)`; duplicate display names remain distinct. The four-field form without `peer_id` is accepted for legacy presence packets, but cannot be matched to a TCP handshake by ID.
+
+The UDP registry key identifies an endpoint, while TCP connections and chat histories use the `peer_id` exchanged in the TCP `HELLO` frame. This ID stays stable for one application session. The coordinator must share it between Discovery and ConnectionManager and advertise the port on which TCP actually listens.
 
 ## TCP frame
 
@@ -39,6 +51,7 @@ Structured payloads are compact UTF-8 JSON objects. Length always counts encoded
 ```
 
 Both fields are required non-empty strings. Discovery must provide the same `peer_id`, display name, IP, and TCP port so the connection can be matched to the registry.
+`HELLO` states an identity but does not authenticate it. The coordinator must verify that the received ID matches the selected discovery peer before treating the connection as that peer.
 
 ### `CHAT`
 
@@ -50,7 +63,7 @@ Both fields are required non-empty strings. Discovery must provide the same `pee
 }
 ```
 
-`text` and `sent_at` are required non-empty strings. `sender` is a display value; routing and history use the authenticated `peer_id` from the socket handshake.
+`text` and `sent_at` are required non-empty strings. `sender` is a display value; routing and history use the `peer_id` stated in the TCP `HELLO`, subject to coordinator verification against discovery.
 
 ### File-transfer contract for TV3
 
@@ -58,9 +71,13 @@ The shared message types intentionally leave file policy in `transfer.py`. Recom
 
 - `FILE_META`: `{"transfer_id":"...","name":"safe-name","size":123}`
 - `FILE_CHUNK`: raw chunks no larger than 64 KiB
-- `FILE_END`: `{"transfer_id":"...","sha256":"..."}`
+- `FILE_END`: `{"transfer_id":"...","sha256":"..."}` marks the end of the sender's chunks. The receiver checks the byte count against `FILE_META.size` and the SHA-256 hash against `FILE_END.sha256` before accepting the file. Acknowledgement policy awaits TV3 approval.
 
-`ConnectionManager.send()` locks one complete frame at a time. File transfer should call it once per chunk, allowing chat frames to interleave between chunks without corrupting the TCP stream. The receiver routes all message types to registered handlers, so chat and transfer may share one connection.
+Only one file transfer per direction may be active on a TCP connection. `ConnectionManager.send()` locks one complete frame at a time; CHAT frames may interleave with file chunks without corrupting the stream. The receiver routes message types to registered handlers.
+
+### `LEAVE`
+
+Whether `LEAVE` ends only the selected conversation or closes its TCP connection awaits team approval; no handler currently defines this behavior.
 
 ## Connection model
 
@@ -74,4 +91,4 @@ If two peers connect at the same time, the lower lexical `peer_id` keeps its out
 - A single payload is limited to 8 MiB; files must be chunked.
 - Unknown types and unsupported versions are protocol errors.
 - JSON is restricted to an object at the top level.
-- File names, paths, collision handling, partial cleanup, and acknowledgements remain TV3 responsibilities.
+- File names, paths, collision handling, and partial cleanup remain TV3 responsibilities.
