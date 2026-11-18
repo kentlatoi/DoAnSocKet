@@ -23,6 +23,14 @@ python3 -m lanchat --name Quan --port 5001
 python3 -m lanchat --name Minh --port 5002
 ```
 
+For the desktop interface, use a Python installation with Tkinter and start a peer with:
+
+```sh
+python3 -m lanchat --gui --name Quan --port 5001
+```
+
+Select an online peer on the left to connect and view its conversation. Type a message and press Enter or Send; use **Send file…** to choose a local file. The status menu switches between online and away. Transfer progress and completion or error notices appear below the chat. Close the window to stop networking. A second peer can use either the GUI or CLI command with a different name and TCP port.
+
 A third peer can use `--name Lan --port 5003`. Multiple local instances require OS support for UDP port sharing. Received files appear in `downloads/` relative to the process working directory. Existing names receive a numbered suffix and are never overwritten.
 
 | Command | Action |
