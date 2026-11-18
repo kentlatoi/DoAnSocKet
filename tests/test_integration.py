@@ -7,6 +7,7 @@ from pathlib import Path
 
 from lanchat.app import Application
 from lanchat.peer_registry import Peer
+from lanchat.protocol import MessageType, encode_json
 
 
 def wait_until(check, timeout=3):
@@ -19,6 +20,42 @@ def wait_until(check, timeout=3):
 
 
 class ApplicationTests(unittest.TestCase):
+    def test_three_peers_unread_switch_and_interrupted_file(self):
+        with tempfile.TemporaryDirectory() as folder:
+            nodes = [Application(name, udp_port=18101 + index,
+                                 broadcast_address="127.0.0.1",
+                                 downloads=Path(folder) / name)
+                     for index, name in enumerate(("Alice", "Bob", "Carol"))]
+            for node in nodes:
+                self.addCleanup(node.stop)
+                node.start()
+            alice, bob, carol = nodes
+            notices = []
+            alice.cli.notify = notices.append
+            for remote in (bob, carol):
+                alice.select_peer(alice.registry.update(remote.name, "127.0.0.1",
+                                                        remote.connections.port, "online",
+                                                        peer_id=remote.peer_id))
+            self.assertEqual(set(alice.connections.connected_peers()), {bob.peer_id, carol.peer_id})
+            self.assertEqual(alice.chat.current_peer, carol.peer_id)
+            bob.chat.send_message(alice.peer_id, "first unread")
+            self.assertTrue(wait_until(lambda: alice.chat.unread_count(bob.peer_id) == 1))
+            alice.chat.send_message(bob.peer_id, "outgoing before switch")
+            peer_bob = next(peer for peer in alice.registry.list_peers() if peer.peer_id == bob.peer_id)
+            alice.select_peer(peer_bob)
+            self.assertEqual(alice.chat.unread_count(bob.peer_id), 0)
+            self.assertEqual(alice.chat.current_peer, bob.peer_id)
+            self.assertTrue(any("first unread" in notice for notice in notices))
+            self.assertIsNotNone(alice.connections.get_connection(carol.peer_id))
+
+            bob.connections.send(alice.peer_id, MessageType.FILE_META,
+                                 encode_json({"transfer_id": "partial", "name": "interrupted.bin", "size": 100}))
+            bob.connections.send(alice.peer_id, MessageType.FILE_CHUNK, b"partial")
+            self.assertTrue(wait_until(lambda: bool(list((Path(folder) / "Alice").glob("*.part")))))
+            bob.connections.disconnect(alice.peer_id)
+            self.assertTrue(wait_until(lambda: not list((Path(folder) / "Alice").glob("*.part"))))
+            self.assertFalse((Path(folder) / "Alice" / "interrupted.bin").exists())
+
     def test_two_peer_chat_file_and_identity(self):
         with tempfile.TemporaryDirectory() as folder:
             a = Application("Alice", udp_port=18001, broadcast_address="127.0.0.1", downloads=Path(folder) / "a")
