@@ -1,6 +1,17 @@
 # Requirements matrix
 
-**Phase 0 — Repository initialization.** This is the verified historical R01–R39 taxonomy reconciled in the local `KENT_CONTEXT/01_OFFICIAL_REQUIREMENTS.md` against the official five-page assignment PDF. That context directory is reference material outside this repository. The PDF controls requirement meaning; example port values and message strings are illustrative. No official application requirement has been verified.
+**Final integration review — 2026-11-18.** The R01–R39 taxonomy maps to the official five-page PDF. The legacy table below remains a historical baseline; current verified coverage is summarized here. Local tests do not substitute for the physical LAN demo.
+
+| Rubric area | Points | Current status | Evidence / remaining work |
+| --- | ---: | --- | --- |
+| UDP discovery, list, status | 15 | Implemented; unit/local socket tested | Existing discovery tests; two-computer broadcast pending |
+| TCP chat, multiple peers | 20 | Implemented; local socket tested | Existing TCP tests and new app integration; physical LAN pending |
+| File transfer | 15 | Implemented; unit/local socket tested | `test_transfer`, `test_integration`; large live transfer pending |
+| Console UI | 15 | Implemented; TV1 PTY tested | Integrated chat/file PTY redraw pending |
+| Protocol/framing | 10 | Implemented; unit tested | Protocol tests; physical capture pending |
+| Error handling | 10 | Implemented; partly tested | Mismatch, invalid names, cleanup, connection tests; live failures pending |
+| Report | 10 | Draft prepared | PDF and team review pending |
+| Demo/code quality | 5 | Script prepared | Two-computer demo and Wireshark pending |
 
 | ID | Historical requirement baseline | Official PDF source | Type | Official-app status |
 | --- | --- | --- | --- | --- |

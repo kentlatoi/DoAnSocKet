@@ -2,6 +2,20 @@
 
 Records below only claim checks that were actually run. Loopback evidence does not replace the required two-computer LAN test.
 
+## TV3 verification — 2026-11-18, macOS
+
+| Check | Actual result | Status |
+| --- | --- | --- |
+| `python3 -m unittest discover -s tests -p 'test_*.py' -q` with local socket permission | 32 tests, OK, about 22 seconds | PASS |
+| Same command in restricted sandbox | Socket `bind` raised `PermissionError`; unrelated tests continued | BLOCKED in sandbox |
+| `tests/test_transfer.py` | Text, binary >64 KiB, Unicode, empty, collision, bad path, unexpected chunk, checksum mismatch, partial cleanup passed | PASS |
+| `tests/test_integration.py` | Real loopback TCP app startup, shared identity and port, wrong ID rejection, bidirectional chat, file save/integrity, chat during transfer, leave passed | PASS |
+| Physical two-computer LAN and Windows | Not run | NOT RUN |
+| Integrated PTY redraw with chat/file notifications | Not run; prior TV1 PTY check covers discovery notice only | NOT RUN |
+| Genuine UDP broadcast and TCP handshake Wireshark screenshots | Not captured | NOT RUN |
+
+The integration test manually seeds a discovered peer and exercises real TCP sockets; it does not prove cross-host broadcast delivery. A separate three-instance discovery test exists in the TV1 suite.
+
 ## TV1 local verification (2026-11-15–16, macOS)
 
 | Test / command | Expected | Actual | Status |

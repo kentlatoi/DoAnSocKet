@@ -1,6 +1,6 @@
 # Architecture baseline
 
-**Status:** Phase 0 baseline with the TCP/protocol/chat slice implemented for team review.
+**Status:** UDP, TCP, CLI and TV3 coordinator/file-transfer slices implemented; physical LAN verification pending.
 
 ## Official constraints
 
@@ -13,7 +13,7 @@ The assignment requires the same application to act as both listener and connect
 - Core networking → fully functional CLI → testing → documentation → optional GUI.
 - Three members who each understand the integrated application for oral defense.
 
-## Proposed module boundaries
+## Module boundaries
 
 The TCP slice now has concrete interfaces; the remaining module boundaries are still subject to integration review.
 
@@ -29,17 +29,13 @@ The TCP slice now has concrete interfaces; the remaining module boundaries are s
 | `cli.py` | Commands, current peer, responsive input/output. |
 | `app.py` | Composition and shutdown of application components. |
 
-## Open decisions
+## Resolved integration decisions
 
-- How TV1 persists/generates the non-empty `peer_id`; duplicate display names remain allowed because routing uses ID.
-- File acknowledgements and integrity policy beyond the v1 frame types.
-- Shared TCP connection or a separate stream for files; flow control during transfer.
-- Standard-library manual CLI redraw or an optional input library; cross-platform behavior.
-- Broadcast interface selection, firewall guidance, and local multi-instance behavior.
-- Filename collisions, integrity, cancellation, zero-byte files, and interrupted-file cleanup.
-- In-memory or persistent history, and shutdown ordering.
-
-These choices require explicit design and testing during later milestones.
+- `Application` generates one session ID shared by UDP and TCP; missing UDP ID cannot start verified chat.
+- Files share each peer's TCP stream with chat. A file worker sends 64 KiB frames; the per-connection lock preserves complete frames.
+- Receiver validates byte count and SHA-256, saves a temporary file under `downloads/`, then sends `FILE_END` acknowledgement. Interrupted partial files are deleted; collisions receive numbered names.
+- `prompt_toolkit.patch_stdout` redraws typed input. Cross-platform behavior still needs a Windows run.
+- Histories remain in memory. Shutdown stops UDP, transfer workers and TCP connections.
 
 ## TCP connection model
 
