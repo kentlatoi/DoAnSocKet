@@ -10,7 +10,7 @@
 | Console UI | 15 | Implemented; TV1 PTY tested | Integrated chat/file PTY redraw pending |
 | Protocol/framing | 10 | Implemented; unit tested | Protocol tests; physical capture pending |
 | Error handling | 10 | Implemented; partly tested | Mismatch, invalid names, cleanup, connection tests; live failures pending |
-| Report | 10 | Draft prepared | PDF and team review pending |
+| Report | 10 | Draft prepared | Five-page PDF generated; team review pending |
 | Demo/code quality | 5 | Script prepared | Two-computer demo and Wireshark pending |
 
 | ID | Historical requirement baseline | Official PDF source | Type | Official-app status |

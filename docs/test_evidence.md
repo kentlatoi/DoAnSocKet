@@ -13,6 +13,7 @@ Records below only claim checks that were actually run. Loopback evidence does n
 | Physical two-computer LAN and Windows | Not run | NOT RUN |
 | Integrated PTY redraw with chat/file notifications | Not run; prior TV1 PTY check covers discovery notice only | NOT RUN |
 | Genuine UDP broadcast and TCP handshake Wireshark screenshots | Not captured | NOT RUN |
+| Final report PDF generation | `docs/FINAL_REPORT.pdf` rendered from editable Markdown; PDFKit reports five pages | PASS (artifact generation) |
 
 The integration test manually seeds a discovered peer and exercises real TCP sockets; it does not prove cross-host broadcast delivery. A separate three-instance discovery test exists in the TV1 suite.
 
