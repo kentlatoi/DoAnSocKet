@@ -1,6 +1,6 @@
 # Architecture baseline
 
-**Status:** Phase 0 planning. No application architecture has been implemented.
+**Status:** Phase 0 baseline with the TCP/protocol/chat slice implemented for team review.
 
 ## Official constraints
 
@@ -15,24 +15,24 @@ The assignment requires the same application to act as both listener and connect
 
 ## Proposed module boundaries
 
-These modules are present as **docstring and TODO placeholders only**. Their proposed boundaries remain subject to later design and implementation.
+The TCP slice now has concrete interfaces; the remaining module boundaries are still subject to integration review.
 
 | Future module | Proposed responsibility |
 | --- | --- |
-| `protocol.py` | Datagram and TCP frame formats, encoding, bounds, validation, exact reads. |
+| `protocol.py` | Implemented TCP frame format, UTF-8 JSON helpers, bounds, validation, exact reads. |
 | `config.py` | TCP/UDP ports, heartbeat, timeout, and downloads path settings. |
 | `discovery.py` | UDP broadcast, receive, timeout, presence events. |
 | `peer_registry.py` | Synchronized peer identity, status, history, unread counts. |
-| `connections.py` | TCP listen/connect, peer connections, lifecycle. |
-| `chat.py` | Chat delivery and history events. |
+| `connections.py` | Implemented TCP listen/connect, HELLO handshake, duplicate resolution, multi-peer lifecycle and handler dispatch. |
+| `chat.py` | Implemented chat delivery, per-peer history, current conversation, unread counts and events. |
 | `transfer.py` | File transfer, progress, received-file cleanup. |
 | `cli.py` | Commands, current peer, responsive input/output. |
 | `app.py` | Composition and shutdown of application components. |
 
 ## Open decisions
 
-- Peer identity, duplicate names, restart behavior, and simultaneous connections.
-- Wire schema, version, maximum frame sizes, invalid-message policy, and acknowledgements.
+- How TV1 persists/generates the non-empty `peer_id`; duplicate display names remain allowed because routing uses ID.
+- File acknowledgements and integrity policy beyond the v1 frame types.
 - Shared TCP connection or a separate stream for files; flow control during transfer.
 - Standard-library manual CLI redraw or an optional input library; cross-platform behavior.
 - Broadcast interface selection, firewall guidance, and local multi-instance behavior.
@@ -40,3 +40,15 @@ These modules are present as **docstring and TODO placeholders only**. Their pro
 - In-memory or persistent history, and shutdown ordering.
 
 These choices require explicit design and testing during later milestones.
+
+## TCP connection model
+
+`ConnectionManager` owns one listener thread, short-lived handshake workers, and one receive worker per active peer. `start()` binds/listens and exposes the selected TCP port to discovery. `connect(ip, port)` uses the registry endpoint, exchanges `HELLO` identity frames, and registers the stream. Message handlers let chat and transfer receive their own types without coupling those modules.
+
+All connection maps and handler lists use a re-entrant lock. Every stream has a separate send lock so concurrent chat and file workers cannot interleave bytes inside a frame. The receive worker converts close, reset, partial frame, and invalid frame conditions into removal plus a disconnect event. `stop()` closes the listener and all peer sockets, which wakes blocked `accept()`/`recv()` calls before workers are joined.
+
+Simultaneous outgoing connections are resolved by peer ID: the lower ID keeps outgoing and the higher ID keeps incoming. Replacing the non-preferred stream does not emit a false disconnect event.
+
+## Chat state model
+
+`ChatManager` registers one message handler and only consumes `CHAT` frames. Histories and unread counters are keyed by peer ID and protected by a lock. Incoming messages for the selected peer are immediately visible with unread count zero; other conversations accumulate unread counts. Selecting a peer returns the unread messages and resets only that peer's counter. Switching conversations never closes TCP connections.
