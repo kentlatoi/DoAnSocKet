@@ -100,7 +100,8 @@ class ChatManager:
 
         with self._lock:
             unread = self._unread[peer_id]
-            messages = list(self._histories[peer_id][-unread:]) if unread else []
+            messages = [message for message in reversed(self._histories[peer_id])
+                        if message.incoming][:unread][::-1]
             self._unread[peer_id] = 0
             self._current_peer = peer_id
             return messages
