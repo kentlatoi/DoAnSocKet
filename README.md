@@ -66,4 +66,4 @@ python3 examples/milestone_01/tcp_echo_client.py --port 19090 'Xin chào'
 
 ## Remaining validation
 
-The automated suite covers local sockets. A two-computer LAN run, Windows run, terminal redraw during integrated chat/file events, and genuine Wireshark screenshots remain to be completed. See [test evidence](docs/test_evidence.md) and [demo script](docs/FINAL_DEMO_SCRIPT.md).
+The automated suite covers local sockets. Two-process pseudo-terminal checks confirmed input redraw for incoming chat and file-progress notices. A two-computer LAN run, Windows run and genuine Wireshark screenshots remain to be completed. See [test evidence](docs/test_evidence.md), [two-computer acceptance checklist](docs/TWO_COMPUTER_ACCEPTANCE.md), and [demo script](docs/FINAL_DEMO_SCRIPT.md).

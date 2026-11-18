@@ -87,6 +87,13 @@ class ChatManagerTests(unittest.TestCase):
         self.assertEqual(len(chat.get_history("bob")), 50)
         self.assertEqual(chat.unread_count("bob"), 50)
 
+    def test_sent_message_does_not_replace_unread_incoming_message(self) -> None:
+        connections = FakeConnections()
+        chat = ChatManager(connections, "Me")
+        connections.receive("bob", "unread", "Bob")
+        chat.send_message("bob", "my reply")
+        self.assertEqual([message.text for message in chat.select_peer("bob")], ["unread"])
+
     def test_invalid_chat_payload_is_rejected(self) -> None:
         chat = ChatManager(FakeConnections(), "Me")
         with self.assertRaises(ProtocolError):

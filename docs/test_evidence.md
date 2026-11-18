@@ -2,6 +2,22 @@
 
 Records below only claim checks that were actually run. Loopback evidence does not replace the required two-computer LAN test.
 
+## Final demo QA — 2026-11-18, macOS
+
+| Check | Actual result | Status |
+| --- | --- | --- |
+| `python3 -m unittest discover -s tests -p 'test_*.py' -v` on merged `main` with socket access | 32 tests, OK, 25.240 s | PASS |
+| `python3 -m unittest discover -s tests -p 'test_*.py' -q` on QA branch with socket access | 34 tests, OK, 26.635 s | PASS |
+| `python3 -m unittest tests.test_chat tests.test_integration -v` after QA changes | 7 tests, OK, 2.634 s; includes three real TCP peers, unread switch and interrupted `.part` cleanup | PASS |
+| Two real `python3 -m lanchat` processes in pseudo-terminals, common UDP port 19199 | Both discovered each other; `/li` survived incoming chat notice, completed `/list` showed Bob; switching chat showed unread; both `/quit` exited | PASS (local PTY smoke) |
+| Official assignment PDF and submitted final PDF | Both have 5 pages; report PDF text includes UDP, TCP, file transfer, thread, SHA-256 and tests | PASS (content inspection) |
+| Physical two-computer LAN, Windows and genuine Wireshark | Not available in this run | NOT RUN |
+| Two real application processes in pseudo-terminals, common UDP port 19201, 8 MiB file | Partial `/li` survived receiving progress and completion notices; completing `/list` showed Bob; receiver bytes matched source; both processes quit | PASS (local PTY smoke) |
+
+An earlier file-progress PTY script timed out because it waited for the file-completion notice *after* checking `/list`, although the transfer had already completed. The corrected script checked completion before finishing `/list` and passed. This was a test-order error, not a confirmed application failure.
+
+The QA changes to TV2 `ChatManager.select_peer` correct unread display when an outgoing message follows an unread incoming message. TV2 owner review is requested. The untracked `demo_file.bin` was preserved and is not part of test evidence.
+
 ## TV3 verification — 2026-11-18, macOS
 
 | Check | Actual result | Status |

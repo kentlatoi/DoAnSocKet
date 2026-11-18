@@ -1,5 +1,7 @@
 # Kịch bản demo 10 phút (chưa thực hiện trên hai máy)
 
+Điền kết quả thực và ảnh theo [phiếu nghiệm thu hai máy](TWO_COMPUTER_ACCEPTANCE.md) trước khi đánh dấu demo hoàn tất.
+
 | Thời gian | Người nói | Thao tác và nội dung |
 | --- | --- | --- |
 | 0:00–1:00 | TV1 | Giới thiệu P2P: mỗi máy vừa phát UDP presence vừa nghe TCP. Kiểm tra hai máy cùng LAN. |
