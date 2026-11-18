@@ -1,6 +1,6 @@
 # Application protocol specification — version 1
 
-**Status:** TCP v1 was merged in PR #4. UDP discovery is in PR #5; application coordination and file transfer are not yet integrated.
+**Status:** TCP v1 and UDP discovery were merged in PRs #4 and #5. Application coordination and file transfer are not yet integrated.
 
 ## UDP presence
 
@@ -51,7 +51,7 @@ Structured payloads are compact UTF-8 JSON objects. Length always counts encoded
 ```
 
 Both fields are required non-empty strings. Discovery must provide the same `peer_id`, display name, IP, and TCP port so the connection can be matched to the registry.
-`HELLO` states an identity but does not authenticate it. The coordinator must verify that the received ID matches the selected discovery peer before treating the connection as that peer.
+`HELLO` states an identity but does not authenticate it. When connecting to a selected discovery peer, the received ID must match that peer's ID before the connection is registered (see TCP identity fix PR #6). A legacy UDP peer with no ID cannot pass this check and should be shown as unavailable for verified chat.
 
 ### `CHAT`
 
@@ -77,7 +77,7 @@ Only one file transfer per direction may be active on a TCP connection. `Connect
 
 ### `LEAVE`
 
-Whether `LEAVE` ends only the selected conversation or closes its TCP connection awaits team approval; no handler currently defines this behavior.
+`/leave` ends the current conversation by calling `ChatManager.leave_chat()`; it keeps the TCP connection and other conversations available. `LEAVE` is reserved as a wire message type, but no handler currently sends or interprets it. TV3 should not send it for `/leave` without a separate team decision.
 
 ## Connection model
 
