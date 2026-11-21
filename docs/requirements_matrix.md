@@ -1,16 +1,16 @@
 # Requirements matrix
 
-**Final integration review — 2026-11-18.** The R01–R39 taxonomy maps to the official five-page PDF. The legacy table below remains a historical baseline; current verified coverage is summarized here. Local tests do not substitute for the physical LAN demo.
+**Final integration review — 2026-11-22.** The official assignment PDF was not present during this run, so the R01–R39 taxonomy below is treated as the repository's existing interpretation rather than a newly verified transcription. Local tests do not substitute for the physical LAN demo.
 
 | Rubric area | Points | Current status | Evidence / remaining work |
 | --- | ---: | --- | --- |
 | UDP discovery, list, status | 15 | Implemented; unit/local socket tested | Existing discovery tests; two-computer broadcast pending |
 | TCP chat, multiple peers | 20 | Implemented; local socket tested | Existing TCP tests and new app integration; physical LAN pending |
-| File transfer | 15 | Implemented; unit/local socket tested | `test_transfer`, `test_integration`; large live transfer pending |
-| Console UI | 15 | Implemented; local PTY tested | Integrated chat/unread and file-progress redraw passed |
+| File transfer | 15 | Implemented; real local TCP tested | 0 B–64 MiB, SHA-256, ACK/failures and chat during transfer passed |
+| Responsive CLI or GUI | 15 | CLI implemented and local PTY verified; GUI partially manually verified | GUI startup/render/discovery passed; full GUI picker/cross-interface workflow pending |
 | Protocol/framing | 10 | Implemented; unit tested | Protocol tests; physical capture pending |
 | Error handling | 10 | Implemented; partly tested | Mismatch, invalid names, cleanup, connection tests; live failures pending |
-| Report | 10 | Draft prepared | Five-page PDF generated; team review pending |
+| Report | 10 | Final QA report prepared | PDF regenerated from current evidence; team review pending |
 | Demo/code quality | 5 | Script prepared | Two-computer demo and Wireshark pending |
 
 | ID | Historical requirement baseline | Official PDF source | Type | Official-app status |
@@ -46,12 +46,12 @@
 | R29 | Missing/interrupted file báo lỗi; partial received file bị xóa | p4 §5.3 | M | Implemented; local tests |
 | R30 | Invalid command hiển thị trợ giúp ngắn | p4 §5.3 | M for CLI; equivalent validation for GUI | Implemented; local tests |
 | R31 | Nộp source code và README với install/run/test instructions | p5 §7.1 | M | Implemented; README reviewed |
-| R32 | Nộp report 5–10 pages | p5 §7.2 | M | Draft: five-page PDF; team review pending |
+| R32 | Nộp report 5–10 pages | p5 §7.2 | M | Final QA PDF generated; team review pending |
 | R33 | Wireshark evidence cho UDP broadcast và TCP three-way handshake, kèm giải thích | p5 §7.3 | M | PENDING: genuine Wireshark screenshots |
 | R34 | Live demo 10 phút trên ít nhất hai computers | p5 §7.4 | M | PENDING: live two-computer demo |
 | R35 | Shutdown giải phóng connections/threads hợp lý | p1 objectives; p4 error/lifecycle context; `/quit` p2 | M for stability/lifecycle | Implemented; local shutdown tested |
 | R36 | Hỗ trợ multiple simultaneous peers/connections | pp1–2 objectives, §3.3; p5 rubric | M | Implemented; three-peer local TCP tested |
-| R37 | Console hoặc GUI đều được chấp nhận | p1 General information; p5 rubric | A | CLI chosen and implemented |
+| R37 | Console hoặc GUI đều được chấp nhận | p1 General information; p5 rubric | A | CLI verified; GUI implemented on open PR #10 and partially manually verified |
 | R38 | Team size 2–3 students | p1 General information | M administrative | Administrative: team roster to confirm |
 | R39 | Có thể chạy trên ≥2 computers cùng LAN/Wi-Fi hoặc multiple local instances khi phát triển; final demo vẫn theo R34 | p1 Environment; p5 §7.4 | A environment; R34 final mandatory | Local instances tested; physical LAN pending |
 
