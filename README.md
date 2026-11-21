@@ -4,24 +4,42 @@ Python 3 peer-to-peer LAN chat. UDP broadcasts presence; TCP carries framed chat
 
 ## Install
 
-Requires Python 3.10+ and `prompt_toolkit` 3.x.
+Use Python 3.10+ with Tkinter available for the GUI. On macOS:
 
 ```sh
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e .
+python -m pip install -r requirements.txt
+python -m tkinter
 ```
 
-On Windows activate with `.venv\Scripts\activate` and use `python` in place of `python3`. Windows operation has not been verified.
+On Windows (Command Prompt):
+
+```bat
+py -3 -m venv .venv
+.venv\Scripts\activate.bat
+python -m pip install -r requirements.txt
+python -m tkinter
+```
+
+`python -m tkinter` should open a small test window. With Homebrew Python 3.12 on macOS, you may need `brew install python-tk@3.12`. Tkinter must match the Python interpreter used to create `.venv`.
 
 ## Run
 
 On two LAN computers, run the same command with distinct names. TCP port `0` selects a free port and advertises the actual value. The UDP port must match on all peers (default 9999).
 
 ```sh
-python3 -m lanchat --name Quan --port 5001
-python3 -m lanchat --name Minh --port 5002
+python -m lanchat --name Quan --port 5001
+python -m lanchat --name Minh --port 5002
 ```
+
+For the desktop interface, use a Python installation with Tkinter and start a peer with:
+
+```sh
+python -m lanchat --gui --name Quan --port 5001
+```
+
+Select an online peer on the left to connect and view its conversation. Type a message and press Enter or Send; use **Send file…** to choose a local file. The status menu switches between online and away. Transfer progress and completion or error notices appear below the chat. Close the window to stop networking. A second peer can use either the GUI or CLI command with a different name and TCP port.
 
 A third peer can use `--name Lan --port 5003`. Multiple local instances require OS support for UDP port sharing. Received files appear in `downloads/` relative to the process working directory. Existing names receive a numbered suffix and are never overwritten.
 
@@ -41,8 +59,8 @@ Legacy UDP peers without a peer ID appear in `/list`, but verified TCP chat with
 ## Test and troubleshoot
 
 ```sh
-python3 -m unittest discover -s tests -p 'test_*.py' -v
-python3 -m compileall -q lanchat examples/milestone_01 tests
+python -m compileall -q lanchat tests
+python -m unittest discover -s tests -p 'test_*.py' -q
 ```
 
 Tests that bind sockets need local network permission. If peers do not appear, confirm that both machines use the same UDP port and LAN, allow Python through the firewall, and check whether the network permits broadcasts. A stale peer may remain listed for up to ten seconds. If TCP connect fails, confirm the advertised port is reachable. A sender reports verified completion only after the receiver saves and acknowledges the file; failure or interruption removes the `.part` file.

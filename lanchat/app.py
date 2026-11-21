@@ -25,6 +25,7 @@ class Application:
         self.session = session
         self.connections.add_disconnect_handler(self._disconnect_event)
         self._stopped = False
+        self.gui_event = None
 
     def start(self):
         try:
@@ -32,9 +33,10 @@ class Application:
             self.discovery = Discovery(self.name, port, self.registry, self.udp_port,
                                        self.broadcast_address, on_error=lambda error: self.notify(f"UDP error: {error}"),
                                        peer_id=self.peer_id)
-            self.cli = CLI(self.registry, self.discovery, on_chat=self.select_peer,
-                           on_send=self.send_file, on_leave=self.leave, on_text=self.send_text,
-                           on_quit=self.stop, session=self.session)
+            if self.gui_event is None:
+                self.cli = CLI(self.registry, self.discovery, on_chat=self.select_peer,
+                               on_send=self.send_file, on_leave=self.leave, on_text=self.send_text,
+                               on_quit=self.stop, session=self.session)
             self.discovery.start()
         except Exception:
             self.stop()
@@ -50,7 +52,9 @@ class Application:
             self.stop()
 
     def notify(self, message):
-        if self.cli:
+        if self.gui_event:
+            self.gui_event("notice", message)
+        elif self.cli:
             self.cli.notify(message)
 
     def select_peer(self, peer):
@@ -92,9 +96,14 @@ class Application:
         self.notify("Left chat. Connections remain available.")
 
     def _peer_event(self, kind, peer):
+        if self.gui_event:
+            self.gui_event("peers", None)
         self.notify(f"Peer {kind}: {peer.name} ({peer.ip}:{peer.tcp_port})")
 
     def _chat_event(self, event):
+        if self.gui_event:
+            self.gui_event("chat", event)
+            return
         message = event.message
         if event.unread_count:
             self.notify(f"{message.sender}: {event.unread_count} unread message(s). Use /chat to view.")
