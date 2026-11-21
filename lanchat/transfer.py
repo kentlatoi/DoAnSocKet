@@ -119,9 +119,10 @@ class TransferManager:
                     self._abort(peer_id)
                     raise ProtocolError(f"Cannot write incoming file: {error}") from error
                 state[4].update(frame.payload)
+                previous_percent = state[3] * 100 // state[2] if state[2] else 100
                 state[3] += len(frame.payload)
                 percent = state[3] * 100 // state[2] if state[2] else 100
-            if percent == 100 or percent % 10 == 0:
+            if percent == 100 or percent // 10 != previous_percent // 10:
                 self.notify(f"Receiving {state[1]}: {percent}%")
         else:
             data = decode_json(frame.payload)

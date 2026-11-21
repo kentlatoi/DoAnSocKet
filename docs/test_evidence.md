@@ -2,6 +2,25 @@
 
 Records below only claim checks that were actually run. Loopback evidence does not replace the required two-computer LAN test.
 
+## Final system QA — 2026-11-22, macOS
+
+| Check | Actual result | Status |
+| --- | --- | --- |
+| Clean Homebrew Python 3.12.16 venv + `pip install -r requirements.txt` | `prompt-toolkit 3.0.52`; Tk 9.1 import succeeds | PASS |
+| Clean pyenv Python 3.12.8 venv | Dependency installs; `_tkinter` is unavailable for this interpreter | CLI PASS / GUI BLOCKED on this interpreter |
+| `compileall -q lanchat examples tests` | Exit 0 | PASS |
+| Full suite after QA fix | 40 tests, OK, 27.882 s; 0 fail, 0 skip | PASS |
+| Three real CLI PTYs, TCP 5001/5002/5003, common UDP 23001 | Discovery, status away, Unicode chat, unread, leave/reselect, invalid commands, input redraw, file with Unicode/spaces, clean quit | PASS (local PTY) |
+| CLI file hash | Source and receiver `ead7e32652699ef98bb14954b7ce6f396550e45cad38376bad51365843878254`; no `.part` | PASS |
+| System file harness over real TCP | 24 valid scenarios: 0 B through 64 MiB, boundaries, collision, bidirectional/different-peer, chat concurrent, ACK timeout, bad metadata/size/hash/path, disconnect/write/shutdown cleanup | PASS (local loopback) |
+| 64 MiB post-fix verification | SHA-256 match; progress exactly 0%, 10%, ..., 100% once each | PASS |
+| Actual Tk GUI | Window rendered; controls visible; Quan discovered Minh; input remained responsive | PARTIAL PASS |
+| Full GUI chat/file picker and GUI↔GUI/CLI cross-interface workflows | Automation could not reliably select the Tk Treeview | NOT RUN |
+| Port conflict and CLI Ctrl+C | Clear `Address already in use`; Ctrl+C exit 0 without traceback | PASS |
+| Physical LAN, Windows and genuine Wireshark | Not available in this run | NOT RUN |
+
+The official assignment file `LAN_Chat_Socket_Project.docx.pdf` was not present. Existing rubric/matrix documentation was used, and this limitation is explicit in the final report.
+
 ## Final demo QA — 2026-11-18, macOS
 
 | Check | Actual result | Status |
