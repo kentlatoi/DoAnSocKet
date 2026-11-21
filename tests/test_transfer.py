@@ -76,3 +76,11 @@ class TransferTests(unittest.TestCase):
         self.receiver.handle_frame("sender", Frame(MessageType.FILE_CHUNK, b"x"))
         self.receiver.handle_frame("sender", Frame(MessageType.FILE_END, encode_json({"transfer_id": "1", "sha256": "bad"})))
         self.assertEqual(list((self.root / "downloads").iterdir()), [])
+
+    def test_receive_progress_is_not_repeated_within_a_decile(self):
+        self.receiver.handle_frame("sender", Frame(MessageType.FILE_META, encode_json({"transfer_id": "1", "name": "slow.bin", "size": 1000})))
+        for _ in range(5):
+            self.receiver.handle_frame("sender", Frame(MessageType.FILE_CHUNK, b"x"))
+
+        self.assertEqual(self.receiver_events, ["Receiving slow.bin: 0%"])
+        self.receiver._disconnected("sender", None)
