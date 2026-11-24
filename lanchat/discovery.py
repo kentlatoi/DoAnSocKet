@@ -101,20 +101,26 @@ class Discovery:
         self._listener = self._sender = None
 
     def _broadcast(self):
+        sender = self._sender
+        if sender is None:
+            return
         while not self._stop.is_set():
             self._send_now.clear()
             message = f"HELLO|{self.name}|{self.tcp_port}|{self.status}|{self.peer_id}".encode("utf-8")
             try:
-                self._sender.sendto(message, (self.broadcast_address, self.udp_port))
+                sender.sendto(message, (self.broadcast_address, self.udp_port))
             except OSError as error:
                 if not self._stop.is_set():
                     self._report_error(error)
             self._send_now.wait(HEARTBEAT_SECONDS)
 
     def _listen(self):
+        listener = self._listener
+        if listener is None:
+            return
         while not self._stop.is_set():
             try:
-                data, address = self._listener.recvfrom(513)
+                data, address = listener.recvfrom(513)
             except socket.timeout:
                 continue
             except OSError as error:
