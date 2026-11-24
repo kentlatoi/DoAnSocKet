@@ -47,7 +47,10 @@ class Application:
     def run(self):
         self.start()
         try:
-            self.cli.run()
+            cli = self.cli
+            if cli is None:
+                raise RuntimeError("CLI is unavailable")
+            cli.run()
         finally:
             self.stop()
 
