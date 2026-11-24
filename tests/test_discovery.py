@@ -14,12 +14,15 @@ class RegistryTests(unittest.TestCase):
         registry = PeerRegistry(lambda kind, peer: events.append((kind, peer.name)))
         registry.update("A", "127.0.0.1", 5001, "online", now=0)
         registry.update("A", "127.0.0.1", 5001, "away", now=3)
+        registry.update("A", "127.0.0.1", 5001, "away", now=4)
+        registry.update("A", "127.0.0.1", 5001, "online", now=5)
         registry.update("A", "127.0.0.1", 5002, "online", now=3)
         self.assertEqual(len(registry.list_peers()), 2)
-        self.assertEqual(registry.list_peers()[0].status, "away")
+        self.assertEqual(registry.list_peers()[0].status, "online")
         self.assertEqual(registry.expire(10, now=12), [])
-        self.assertEqual(len(registry.expire(10, now=13)), 2)
-        self.assertEqual(events, [("online", "A"), ("online", "A"),
+        self.assertEqual(len(registry.expire(10, now=15)), 2)
+        self.assertEqual(events, [("online", "A"), ("status_changed", "A"),
+                                  ("status_changed", "A"), ("online", "A"),
                                   ("offline", "A"), ("offline", "A")])
 
     def test_invalid_datagrams(self):

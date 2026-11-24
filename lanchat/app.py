@@ -98,7 +98,10 @@ class Application:
     def _peer_event(self, kind, peer):
         if self.gui_event:
             self.gui_event("peers", None)
-        self.notify(f"Peer {kind}: {peer.name} ({peer.ip}:{peer.tcp_port})")
+        if kind == "status_changed":
+            self.notify(f"Peer {peer.name} is now {peer.status}")
+        else:
+            self.notify(f"Peer {kind}: {peer.name} ({peer.ip}:{peer.tcp_port})")
 
     def _chat_event(self, event):
         if self.gui_event:

@@ -21,17 +21,20 @@ class PeerRegistry:
     def __init__(self, on_event=None):
         self._peers = {}
         self._lock = threading.Lock()
-        self.on_event = on_event  # Called with ("online" or "offline", Peer).
+        self.on_event = on_event  # Called with ("online", "offline", or "status_changed", Peer).
 
     def update(self, name, ip, tcp_port, status, now=None, peer_id=""):
         now = time.monotonic() if now is None else now
         peer = Peer(name, ip, tcp_port, status, now, peer_id)
         key = (ip, tcp_port)
         with self._lock:
-            new = key not in self._peers
+            previous = self._peers.get(key)
             self._peers[key] = peer
-        if new and self.on_event:
-            self.on_event("online", peer)
+        if self.on_event:
+            if previous is None:
+                self.on_event("online", peer)
+            elif previous.status != status:
+                self.on_event("status_changed", peer)
         return peer
 
     def expire(self, timeout, now=None):
