@@ -1,239 +1,403 @@
 # LAN Chat & File Sharing
 
-Peer-to-peer chat and file sharing for computers on the same local network, developed for the **Computer Networking** course at the **Faculty of Information Technology, University of Science, Vietnam National University Ho Chi Minh City (HCMUS)**.
+## 1. Giới thiệu
 
-Each running instance is both a client and a server. Peers advertise their presence through UDP broadcast, then establish direct TCP connections for framed chat messages and file transfers. The project is implemented with Python's native socket API and provides both command-line and Tkinter interfaces.
+LAN Chat & File Sharing là chương trình nhắn tin và truyền file trực tiếp giữa các máy trong cùng mạng LAN. Mỗi phiên chạy vừa lắng nghe kết nối đến, vừa có thể chủ động kết nối tới peer khác nên không cần máy chủ trung tâm.
 
-## Team Members
+UDP Broadcast được dùng để các peer tự động phát hiện nhau, quảng bá trạng thái và nhận biết peer đã rời mạng. Sau khi người dùng chọn một peer, chương trình thiết lập kết nối TCP để trao đổi tin nhắn và truyền file. Ứng dụng có hai giao diện sử dụng chung phần xử lý mạng: CLI trên terminal và GUI bằng Tkinter.
 
-| Member | Full name | Student ID |
-| --- | --- | --- |
+## 2. Thành viên
+
+| Thành viên | Họ và tên | MSSV |
+|---|---|---|
 | Member 1 | Nguyễn Trần Minh Khang | 25127369 |
 | Member 2 | Nguyễn Ngọc Thanh Hương | 25127197 |
 | Member 3 | Phạm Hùng Khôi | 25127390 |
 
-## Key Features
+## 3. Chức năng chính
 
-- Automatic peer discovery through UDP broadcast on a shared port.
-- Presence heartbeats, peer timeout detection, and `online`/`away` synchronization.
-- Concurrent TCP connections to multiple peers with duplicate-connection resolution.
-- Bidirectional UTF-8 messaging, per-peer in-memory history, and unread counters.
-- File transfer on the existing TCP connection with send/receive progress notices.
-- Chat frames can be exchanged while a file transfer is in progress.
-- Receiver-side byte-count and SHA-256 verification with acknowledgement to the sender.
-- Collision-safe received filenames and cleanup of interrupted `.part` files.
-- Responsive CLI based on `prompt_toolkit`, preserving partially typed input when asynchronous notices arrive.
-- Tkinter GUI for peer selection, chat, status changes, file selection, and transfer progress.
-- Input validation, connection error reporting, and coordinated shutdown of sockets and worker threads.
+- Tự động phát hiện các peer trong cùng mạng LAN bằng UDP Broadcast và Heartbeat.
+- Quảng bá, cập nhật hai trạng thái `online` và `away`; loại peer khỏi danh sách sau thời gian Timeout.
+- Thiết lập kết nối TCP hai chiều và quản lý đồng thời nhiều peer.
+- Lưu lịch sử tin nhắn riêng theo từng peer và hiển thị số tin chưa đọc.
+- Truyền file theo từng chunk, hiển thị tiến độ gửi/nhận và kiểm tra SHA-256.
+- Cho phép tiếp tục nhắn tin trong lúc truyền file.
+- Không ghi đè file đã có; tự tạo tên mới và xóa file tạm khi quá trình nhận bị gián đoạn.
+- Cung cấp CLI giữ nguyên nội dung đang nhập khi có thông báo và GUI cập nhật qua Event Queue.
+- Báo lỗi cho lệnh không hợp lệ, file không tồn tại, lỗi kết nối, dữ liệu sai protocol và ngắt kết nối.
 
-## System Architecture
+## 4. Kiến trúc hệ thống
 
-```text
-                           one LAN Chat peer
-┌─────────────────────────────────────────────────────────────────┐
-│ CLI (prompt_toolkit)                 GUI (Tkinter event queue)   │
-│              └──────────────┬──────────────┘                     │
-│                         Application                              │
-│          ┌──────────────┬───┴───────────┬──────────────┐         │
-│   UDP Discovery   Peer Registry   Chat Manager   Transfer Manager│
-│          │              │              └──────┬───────┘         │
-│          │      thread-safe snapshots     Connection Manager     │
-│          │                                  framed TCP streams   │
-└──────────┼────────────────────────────────────────┼──────────────┘
-           │ UDP broadcast                          │ TCP
-           └──────────────── other LAN peers ───────┘
+```mermaid
+flowchart TD
+    CLI[CLI] --> App[Application]
+    GUI[GUI] --> App
+
+    subgraph UDP["Peer Discovery"]
+        Discovery[UDP Discovery]
+        Registry[Peer Registry]
+        Discovery --> Registry
+    end
+
+    subgraph TCP["Communication"]
+        Chat[Chat Manager]
+        Transfer[Transfer Manager]
+        Connection[Connection Manager]
+
+        Chat <--> Connection
+        Transfer <--> Connection
+    end
+
+    App --> Discovery
+    App --> Chat
+    App --> Transfer
+
+    Discovery <-->|UDP Broadcast| Peers[Other LAN Peers]
+    Connection <-->|TCP Chat / File| Peers
+
+    classDef ui fill:#F1F5F9,stroke:#94A3B8,color:#334155
+    classDef udp fill:#ECFDF5,stroke:#059669,color:#065F46
+    classDef tcp fill:#EFF6FF,stroke:#2563EB,color:#1E40AF
+
+    class CLI,GUI,App,Peers ui
+    class Discovery,Registry udp
+    class Chat,Transfer,Connection tcp
 ```
 
-- `Discovery` broadcasts presence, listens for other peers, and expires stale registry entries.
-- `PeerRegistry` stores synchronized snapshots of discovered endpoints and their current status.
-- `ConnectionManager` listens for and initiates TCP connections, exchanges identity `HELLO` frames, keeps one stream per peer pair, and dispatches received frames.
-- `ChatManager` owns per-peer histories, the selected conversation, and unread counts.
-- `TransferManager` streams files in a worker thread, reports progress, validates incoming files, and handles acknowledgement or cleanup.
-- `Application` composes these services and routes events to either the CLI or GUI.
+**Luồng UDP:** `Discovery` gửi gói presence bằng UDP Broadcast và nhận gói từ các peer khác. Thông tin hợp lệ được chuyển cho `PeerRegistry` để thêm peer mới, cập nhật trạng thái hoặc loại peer đã hết Timeout. CLI và GUI đọc snapshot từ registry để hiển thị danh sách.
 
-Discovery uses three worker threads for broadcast, receive, and expiration. TCP uses an accept thread, short-lived handshake workers, and one receive worker per active connection. File sending uses a separate worker so chat remains responsive. Shared registries, histories, transfer maps, connection maps, and output paths are protected by `Lock` or `RLock`; each TCP connection also has its own send lock so concurrent frames cannot interleave.
+**Luồng TCP:** người dùng chọn một peer đã discover; `ConnectionManager` kết nối tới IP và TCP port được quảng bá, sau đó hai bên trao đổi `HELLO` ở tầng ứng dụng để xác nhận `peer_id`. Các frame tiếp theo được chuyển đến `ChatManager` hoặc `TransferManager` theo message type.
 
-For additional detail, see [Architecture](docs/architecture.md) and the [Protocol Specification](docs/protocol_spec.md).
+`Application` khởi tạo các module, nối callback và điều phối vòng đời của socket, thread, CLI hoặc GUI. Mỗi phiên chạy có một `peer_id` ngẫu nhiên dùng chung cho UDP Discovery và TCP Communication.
 
-## Project Structure
+## 5. Cấu trúc source code
 
 ```text
 .
 ├── lanchat/
-│   ├── __main__.py          # command-line entry point and arguments
-│   ├── app.py               # component composition and lifecycle
-│   ├── chat.py              # histories, selected chat, and unread state
-│   ├── cli.py               # responsive command-line interface
-│   ├── config.py            # discovery timing and port defaults
-│   ├── connections.py       # multi-peer TCP connection management
-│   ├── discovery.py         # UDP presence broadcast and peer expiry
-│   ├── gui.py               # Tkinter graphical interface
-│   ├── peer_registry.py     # thread-safe discovered-peer state
-│   ├── protocol.py          # TCP framing and JSON helpers
-│   └── transfer.py          # file streaming and integrity checks
-├── tests/                   # unittest unit and loopback integration tests
-├── docs/
-│   ├── architecture.md
-│   ├── protocol_spec.md
-│   ├── requirements_matrix.md
-│   ├── test_evidence.md
-│   ├── TWO_COMPUTER_ACCEPTANCE.md
-│   └── FINAL_DEMO_SCRIPT.md
-├── examples/milestone_01/   # introductory UDP and TCP socket examples
+│   ├── __init__.py
+│   ├── __main__.py       # Entry point và tham số dòng lệnh
+│   ├── app.py            # Khởi tạo, kết nối và dừng các module
+│   ├── chat.py           # Lịch sử chat và số tin chưa đọc
+│   ├── cli.py            # Giao diện dòng lệnh
+│   ├── config.py         # Cổng UDP, Heartbeat và Timeout mặc định
+│   ├── connections.py    # Kết nối TCP với nhiều peer
+│   ├── discovery.py      # UDP Broadcast, nhận presence và expiry
+│   ├── gui.py            # Giao diện Tkinter
+│   ├── peer_registry.py  # Danh sách peer thread-safe
+│   ├── protocol.py       # Message Framing và JSON helpers
+│   └── transfer.py       # Truyền file, tiến độ và SHA-256
+├── tests/
+│   ├── test_chat.py
+│   ├── test_cli.py
+│   ├── test_connections.py
+│   ├── test_discovery.py
+│   ├── test_gui.py
+│   ├── test_integration.py
+│   ├── test_protocol.py
+│   └── test_transfer.py
+├── .gitignore
 ├── pyproject.toml
 ├── requirements.txt
 └── README.md
 ```
 
-## Requirements and Installation
+| Module | Nhiệm vụ chính |
+|---|---|
+| `discovery.py`, `peer_registry.py` | Phát hiện peer, theo dõi `last_seen`, trạng thái và Timeout. |
+| `connections.py`, `protocol.py` | Tạo/nhận kết nối TCP, quản lý stream và đóng khung message. |
+| `chat.py` | Gửi/nhận chat, lưu lịch sử và quản lý unread theo peer. |
+| `transfer.py` | Gửi/nhận file theo chunk, kiểm tra kích thước và SHA-256. |
+| `cli.py`, `gui.py` | Nhận thao tác người dùng và hiển thị sự kiện bất đồng bộ. |
+| `app.py` | Điều phối các module và xử lý lifecycle của ứng dụng. |
 
-- Python 3.10 or later.
-- `prompt-toolkit==3.0.52`, installed from `requirements.txt`.
-- Tkinter from the selected Python distribution for GUI mode. Tkinter is not required for CLI mode.
-- Two computers on the same IPv4 LAN for the intended cross-host demonstration.
+## 6. Cách chương trình hoạt động
 
-Clone and create an isolated environment:
+### 6.1. UDP Discovery
 
-```bash
-git clone https://github.com/kentlatoi/DoAnSocKet.git
-cd DoAnSocKet
-python3 -m venv .venv
-```
+UDP chỉ được dùng cho discovery và presence, không dùng để truyền chat hoặc file. Mặc định, mỗi peer gửi datagram đến địa chỉ Broadcast `255.255.255.255`, cổng UDP `9999`.
 
-Activate it on macOS or Linux, then install the dependency:
+| Tham số | Giá trị mặc định |
+|---|---:|
+| UDP port dùng chung | `9999` |
+| Broadcast address | `255.255.255.255` |
+| Chu kỳ Heartbeat | `3 giây` |
+| Peer Timeout | `10 giây` |
+| Kích thước presence tối đa | `512 byte` |
 
-```bash
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-```
-
-On Windows PowerShell:
-
-```powershell
-py -3 -m venv .venv
-.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-```
-
-Check GUI support with:
-
-```bash
-python -m tkinter
-```
-
-A small Tk test window should open. If the module is unavailable, install a Python distribution that includes Tkinter or the matching Tk package for the current interpreter. Recreate the virtual environment with that interpreter afterward.
-
-## Running the Application
-
-The following are **operating-system terminal commands**. Connect both computers to the same LAN and use the same UDP discovery port. Names and TCP ports must be distinct.
-
-Computer A — Alice, CLI, TCP port 5001:
-
-```bash
-python -m lanchat --name Alice --port 5001
-```
-
-Computer B — Bob, CLI, TCP port 5002:
-
-```bash
-python -m lanchat --name Bob --port 5002
-```
-
-To use the GUI, add `--gui`:
-
-```bash
-python -m lanchat --gui --name Alice --port 5001
-python -m lanchat --gui --name Bob --port 5002
-```
-
-The default discovery port is UDP 9999. Override it only when every peer uses the same value:
-
-```bash
-python -m lanchat --name Alice --port 5001 --udp-port 23001
-```
-
-TCP port `0` asks the operating system for a free port, which the application then advertises. Local firewall rules must allow inbound UDP on the discovery port and inbound TCP on each peer's advertised port. Guest Wi-Fi, access-point client isolation, VPNs, or disabled broadcast forwarding can prevent discovery.
-
-## Usage
-
-After starting CLI mode, enter these commands at the LAN Chat `> ` prompt; they are not shell commands.
-
-| CLI input | Purpose |
-| --- | --- |
-| `/list` | List discovered peers with address, TCP port, and status. |
-| `/chat <name\|number>` | Select a uniquely named peer or its number from `/list`, connecting if needed. |
-| `<message text>` | Send non-empty text to the selected peer. |
-| `/send <file>` | Send a regular file path to the selected peer. The full remaining text is used as the path. |
-| `/leave` | Clear the selected conversation while retaining established TCP connections. |
-| `/status online` | Advertise `online` status immediately. |
-| `/status away` | Advertise `away` status immediately. |
-| `/help` | Display the supported command summary. |
-| `/quit` | Stop networking and exit. |
-
-In GUI mode, select a peer in the left panel; the application connects and displays that conversation. Enter text and press Enter or **Send**, use the status selector for `online` or `away`, and choose **Send file…** to select a local file. The bottom progress bar and notice area show transfer progress, completion, or errors.
-
-Received files are stored in `downloads/` relative to the directory from which the application was launched. Existing files are not overwritten: a numbered suffix such as `document (1).pdf` is used instead.
-
-## Network Protocol
-
-UDP presence is a UTF-8 datagram of at most 512 bytes:
+Gói presence có dạng:
 
 ```text
 HELLO|name|tcp_port|status|peer_id
 ```
 
-The default destination is broadcast address `255.255.255.255`, UDP port `9999`. `status` is `online` or `away`. A datagram is sent immediately at startup, every 3 seconds, and immediately after a status change. A peer is removed after 10 seconds without a valid update. A legacy four-field packet without `peer_id` can be listed but cannot be used for identity-verified chat.
+Ví dụ:
 
-Selecting a peer opens TCP to its advertised endpoint. Both sides exchange a framed JSON `HELLO` containing `peer_id` and `name`; the initiator verifies the discovered ID. Simultaneous duplicate connections are resolved deterministically by peer ID.
+```text
+HELLO|Khang|5001|online|7f43bde5957b4c93ac34d72d5cc6f477
+```
 
-Every TCP application frame has a 10-byte network-byte-order header followed by its payload:
+`name` dài từ 1 đến 64 ký tự hợp lệ; `tcp_port` nằm trong khoảng `1–65535`; `status` chỉ nhận `online` hoặc `away`. `peer_id` là ID của phiên chạy và được dùng để bỏ qua gói của chính mình cũng như đối chiếu khi kết nối TCP. Parser vẫn nhận gói cũ gồm bốn trường không có `peer_id`, nhưng peer đó không thể dùng cho chat có kiểm tra ID.
 
-| Field | Size | Value |
-| --- | ---: | --- |
-| Magic | 4 bytes | ASCII `LCHT` |
+Một gói được gửi ngay khi khởi động, sau đó lặp lại mỗi 3 giây. Khi người dùng đổi trạng thái, chương trình yêu cầu gửi lại ngay thay vì chờ Heartbeat kế tiếp. Gói nhận hợp lệ cập nhật `PeerRegistry` theo cặp `(IP, TCP port)` và thời điểm `last_seen`. Thread expiry kiểm tra mỗi 0,5 giây; peer không gửi presence trong ít nhất 10 giây bị xóa và phát sự kiện `offline`.
+
+### 6.2. TCP Communication
+
+TCP phù hợp với chat và truyền file vì cung cấp byte stream tin cậy, đúng thứ tự và phát hiện khi kết nối bị đóng. Mỗi peer lắng nghe TCP trên cổng đã chọn, đồng thời có thể chủ động kết nối tới peer khác.
+
+Khi người dùng chọn peer, lời gọi `connect()` của hệ điều hành thực hiện TCP Three-Way Handshake gồm `SYN`, `SYN-ACK`, `ACK`. Sau khi kết nối TCP được thiết lập, hai ứng dụng mới trao đổi frame `HELLO` chứa `peer_id` và `name`. Bên chủ động kiểm tra ID nhận được có khớp với ID đã discover hay không; đây là kiểm tra nhất quán danh tính, không phải cơ chế xác thực hoặc mã hóa.
+
+Mỗi kết nối có một receive worker đọc liên tục các frame đến. Chat vì vậy là hai chiều: cả hai bên đều có thể gửi bất kỳ lúc nào. `ConnectionManager` lưu các kết nối theo `peer_id`, nên một peer có thể duy trì kết nối với nhiều peer khác. Nếu hai phía cùng kết nối một lúc, chương trình dùng thứ tự từ điển của `peer_id` để hai bên cùng giữ một TCP stream và đóng stream trùng.
+
+### 6.3. Message Framing
+
+TCP truyền dữ liệu dưới dạng byte stream và không giữ ranh giới giữa các lần `send()`. Chương trình vì vậy thêm một header cố định trước mỗi payload. Hàm `recv_exact()` đọc đủ số byte được khai báo, kể cả khi một frame bị chia qua nhiều lần `recv()` hoặc nhiều frame đến liền nhau.
+
+Header có kích thước 10 byte, dùng network byte order:
+
+| Trường | Kích thước | Giá trị / ý nghĩa |
+|---|---:|---|
+| Magic | 4 byte | ASCII `LCHT` |
 | Version | 1 byte | `1` |
-| Message type | 1 byte | `HELLO`, `CHAT`, `FILE_META`, `FILE_CHUNK`, `FILE_END`, `LEAVE`, or `ERROR` |
-| Payload length | 4 bytes | Unsigned big-endian byte count, maximum 8 MiB |
+| Message type | 1 byte | Loại dữ liệu trong payload |
+| Payload length | 4 byte | Số byte payload, unsigned big-endian |
 
-Chat and metadata payloads are compact UTF-8 JSON objects. File data is sent as raw `FILE_CHUNK` payloads of up to 64 KiB. The sender finishes with a SHA-256 digest; the receiver checks both declared size and digest before assigning an unused destination name and acknowledging success. The sender reports verified completion only after receiving that acknowledgement, with a 30-second acknowledgement timeout.
+Payload của một frame không vượt quá `8 MiB`. Các payload có cấu trúc được mã hóa thành JSON UTF-8; riêng `FILE_CHUNK` chứa byte thô.
 
-The complete field definitions and validation rules are in the [Protocol Specification](docs/protocol_spec.md).
+| Message type | Giá trị | Mục đích thực tế |
+|---|---:|---|
+| `HELLO` | `1` | Trao đổi `peer_id` và tên sau khi TCP kết nối. |
+| `CHAT` | `2` | Gửi người gửi, nội dung và thời điểm gửi. |
+| `FILE_META` | `3` | Khai báo ID, tên và kích thước file. |
+| `FILE_CHUNK` | `4` | Mang một phần dữ liệu file. |
+| `FILE_END` | `5` | Gửi SHA-256 hoặc ACK `status: ok`. |
+| `ERROR` | `7` | Từ chối file khi kích thước/hash không hợp lệ. |
 
-## Testing and Demonstration
+`LEAVE` có giá trị `6` trong protocol nhưng hiện không được gửi hoặc xử lý. Lệnh `/leave` chỉ bỏ chọn cuộc trò chuyện trong `ChatManager`; kết nối TCP vẫn được giữ.
 
-With the project virtual environment active, run the automated suite from the repository root:
+### 6.4. File Transfer
+
+Quá trình truyền file diễn ra như sau:
+
+1. Người gửi kiểm tra đường dẫn là file thông thường và chưa có file khác đang gửi tới cùng peer.
+2. Worker gửi `FILE_META` gồm `transfer_id`, tên file và kích thước.
+3. File được đọc theo chunk tối đa `64 KiB`. Mỗi chunk được gửi trong một frame `FILE_CHUNK`, đồng thời người gửi cập nhật SHA-256 và tiến độ.
+4. Người nhận tạo file tạm có đuôi `.part` trong `downloads/`, ghi từng chunk, đếm byte và tính SHA-256.
+5. Sau chunk cuối, người gửi gửi `FILE_END` chứa digest SHA-256.
+6. Người nhận so sánh số byte thực tế, kích thước đã khai báo và SHA-256. Nếu đúng, file tạm được gắn sang tên cuối rồi người nhận trả ACK `FILE_END` với `status: ok`.
+7. Người gửi chỉ báo hoàn tất sau khi nhận đúng ACK; thời gian chờ ACK tối đa là 30 giây.
+
+Nếu tên file đã tồn tại, chương trình tạo tên như `document (1).pdf` thay vì ghi đè. Tên có đường dẫn hoặc ký tự điều khiển bị từ chối. File `.part` được xóa nếu kích thước/hash sai, kết nối bị ngắt, ứng dụng dừng hoặc không thể hoàn tất file.
+
+Mỗi peer có thể có một file đang gửi và một file đang nhận cùng lúc. Việc gửi file chạy trên worker riêng; mỗi lần gửi giữ `send_lock` cho đúng một frame. Vì vậy frame `CHAT` có thể xen giữa các `FILE_CHUNK` mà không làm trộn byte, giúp cuộc trò chuyện vẫn hoạt động trong lúc truyền file.
+
+### 6.5. Threading và xử lý đồng thời
+
+| Thread / nhóm thread | Nhiệm vụ |
+|---|---|
+| UDP broadcast worker | Gửi presence ngay khi cần và theo chu kỳ 3 giây. |
+| UDP listen worker | Nhận, kiểm tra và chuyển presence vào registry. |
+| UDP expiry worker | Kiểm tra peer hết Timeout mỗi 0,5 giây. |
+| TCP accept worker | Chấp nhận kết nối TCP mới. |
+| TCP handshake worker | Xử lý `HELLO` cho từng kết nối đến. |
+| TCP receive worker | Đọc frame và chuyển đến các message handler của một kết nối. |
+| File send worker | Đọc file, gửi chunk, chờ ACK mà không khóa giao diện. |
+| GUI action / stop worker | Thực hiện kết nối, gửi hoặc dừng ứng dụng ngoài Tkinter main thread. |
+
+`Lock` hoặc `RLock` bảo vệ Peer Registry, connection map, lịch sử/unread, trạng thái transfer và danh sách worker. Mỗi `PeerConnection` có `send_lock`, bảo đảm hai thread không ghi xen byte của hai frame lên cùng socket. CLI dùng output lock và `prompt_toolkit.patch_stdout()` để in thông báo rồi vẽ lại prompt cùng phần người dùng đang nhập.
+
+Tkinter widget chỉ được cập nhật trên GUI main thread. Callback từ network thread đưa sự kiện vào `queue.Queue`; hàm `_drain()` chạy định kỳ bằng `root.after(50, ...)` để xử lý sự kiện, cập nhật danh sách peer, lịch sử chat và tiến độ.
+
+### 6.6. Xử lý lỗi
+
+- Presence sai định dạng, quá 512 byte, sai port hoặc sai trạng thái bị bỏ qua.
+- Peer không còn gửi Heartbeat bị loại khỏi registry sau Timeout; lỗi socket UDP được chuyển thành thông báo.
+- Kết nối TCP đóng hoặc frame sai protocol làm connection tương ứng bị xóa và phát thông báo ngắt kết nối.
+- Lệnh CLI thiếu tham số, sai cú pháp, tên peer trùng hoặc không tìm thấy peer đều được báo mà không làm dừng chương trình.
+- File không tồn tại, không phải file thông thường hoặc đã có transfer cùng chiều tới peer đó bị từ chối trước khi gửi.
+- Chunk vượt kích thước đã khai báo, file thiếu byte hoặc SHA-256 không khớp làm transfer thất bại và xóa file tạm.
+- Tên file nhận không an toàn bị từ chối; file có sẵn không bị ghi đè.
+- Khi ứng dụng dừng, listener và các connection được đóng, transfer đang chờ được đánh thức và các worker được chờ trong thời gian giới hạn.
+
+## 7. Cài đặt và chạy chương trình
+
+### 7.1. Yêu cầu
+
+- Python `3.10` trở lên, theo `pyproject.toml`.
+- Dependency `prompt-toolkit==3.0.52` trong `requirements.txt`.
+- Tkinter nếu chạy GUI; CLI không cần Tkinter.
+- Hai máy cùng mạng IPv4 LAN để kiểm thử discovery qua Broadcast.
+- Cần kết nối Internet khi máy chưa có Python hoặc khi `pip` phải tải dependency.
+
+Giải nén file source code được cung cấp, sau đó mở Terminal, PowerShell hoặc Command Prompt tại thư mục `DoAnSocKet` chứa `README.md`. Không cần Git hoặc IDE riêng.
+
+Trên macOS/Linux, kiểm tra Python rồi tạo và kích hoạt virtual environment:
+
+```bash
+python3 --version
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+Trên Windows PowerShell:
+
+```powershell
+py -3 --version
+py -3 -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
+
+Trên Windows Command Prompt:
+
+```bat
+py -3 --version
+py -3 -m venv .venv
+.venv\Scripts\activate.bat
+python -m pip install -r requirements.txt
+```
+
+Kết quả kiểm tra phiên bản phải là Python 3.10 trở lên. Mỗi lần mở terminal mới, cần kích hoạt lại `.venv` trước khi chạy chương trình hoặc Unit Test.
+
+Kiểm tra Tkinter trước khi chạy GUI:
+
+```bash
+python -m tkinter
+```
+
+Nếu một cửa sổ Tk nhỏ xuất hiện thì interpreter hiện tại đã có Tkinter. Nếu lệnh báo thiếu `_tkinter`, cần cài bản Python/Tk tương thích rồi tạo lại virtual environment bằng interpreter đó.
+
+### 7.2. Chạy trên hai máy
+
+Các lệnh dưới đây được nhập trong terminal của hệ điều hành sau khi kích hoạt `.venv`. Hai máy phải kết nối cùng mạng LAN và dùng chung UDP port; tên và TCP port nên khác nhau. UDP Discovery tự tìm peer nên trong điều kiện mạng bình thường người dùng không cần nhập địa chỉ IP.
+
+**Computer A — Khang, TCP port 5001:**
+
+```bash
+python -m lanchat --name Khang --port 5001
+```
+
+**Computer B — Huong, TCP port 5002:**
+
+```bash
+python -m lanchat --name Huong --port 5002
+```
+
+Chạy GUI bằng cách thêm `--gui`:
+
+```bash
+# Computer A
+python -m lanchat --gui --name Khang --port 5001
+
+# Computer B
+python -m lanchat --gui --name Huong --port 5002
+```
+
+Cổng UDP mặc định là `9999`. Nếu đổi cổng, mọi peer phải dùng cùng giá trị:
+
+```bash
+python -m lanchat --name Khang --port 5001 --udp-port 23001
+```
+
+Tham số `--port 0` cho phép hệ điều hành chọn một TCP port còn trống; ứng dụng sẽ in và quảng bá cổng thực tế. Firewall cần cho phép UDP vào cổng discovery và TCP vào cổng của từng peer. Guest Wi-Fi, VPN hoặc network isolation có thể chặn Broadcast. Cần đóng phiên bản đang chạy trước khi khởi động phiên bản khác sử dụng cùng TCP port.
+
+## 8. Hướng dẫn sử dụng
+
+### 8.1. CLI
+
+Sau khi chạy lệnh terminal `python -m lanchat ...`, nhập các lệnh sau tại prompt `> ` bên trong chương trình:
+
+| Lệnh / cú pháp | Chức năng |
+|---|---|
+| `/list` | Liệt kê peer đã discover cùng IP, TCP port và trạng thái. |
+| `/chat <name\|number>` | Chọn peer theo tên duy nhất hoặc số thứ tự trong `/list`; kết nối nếu cần. |
+| `<nội dung tin nhắn>` | Gửi dòng không bắt đầu bằng `/` tới peer đang chọn. |
+| `/send <đường dẫn file>` | Gửi file tới peer đang chọn; toàn bộ phần sau `/send ` là đường dẫn. |
+| `/leave` | Bỏ chọn cuộc trò chuyện hiện tại nhưng giữ các kết nối TCP. |
+| `/status online` | Chuyển trạng thái sang `online` và quảng bá ngay. |
+| `/status away` | Chuyển trạng thái sang `away` và quảng bá ngay. |
+| `/help` | Hiển thị danh sách lệnh ngắn gọn. |
+| `/quit` | Dừng các module mạng và thoát chương trình. |
+
+### 8.2. GUI
+
+- Chọn một peer trong danh sách bên trái để kết nối và mở lịch sử chat.
+- Nhập tin nhắn rồi nhấn Enter hoặc nút **Send**.
+- Chọn `online` hoặc `away` trong hộp trạng thái ở góc trên.
+- Nhấn **Send file…** để chọn file. Thanh phía dưới hiển thị tiến độ; vùng thông báo cho biết thành công hoặc lỗi.
+- Cột **Unread** hiển thị số tin chưa đọc; peer hết Timeout vẫn được giữ trong danh sách GUI với trạng thái `offline` để người dùng xem lại lịch sử trong phiên hiện tại.
+
+File nhận được lưu trong thư mục `downloads/` tính từ thư mục đang chạy chương trình. Ví dụ, nếu chạy ở thư mục gốc repository thì file nằm tại `DoAnSocKet/downloads/`.
+
+## 9. Kiểm thử và demo
+
+### 9.1. Automated testing
+
+Từ thư mục chứa `README.md`, với virtual environment đã kích hoạt:
 
 ```bash
 python -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-The suite covers protocol framing and validation, UDP lifecycle, peer state, TCP connection management, chat/unread behavior, file transfer and cleanup, CLI behavior, GUI event handling, and real loopback TCP integration. It does not replace testing on two physical computers.
+Test suite kiểm tra protocol framing, UDP lifecycle, trạng thái peer, TCP nhiều kết nối, chat/unread, CLI, GUI event handling, file transfer/cleanup và tích hợp TCP loopback. Lần chạy ngày 26/11/2026 đạt **40/40 test, 0 lỗi, 0 skip** trong 27,468 giây. Automated test trên loopback không thay thế kiểm thử hai laptop thật.
 
-For a manual LAN demonstration:
+### 9.2. Kiểm thử thủ công trên hai máy
 
-1. Start Alice and Bob on two computers, then use `/list` and `/status away`/`online` to demonstrate discovery and status propagation.
-2. Select each peer with `/chat`, exchange messages in both directions, and show unread messages by sending from a non-selected conversation.
-3. Use `/send <file>` and continue chatting during the transfer; confirm progress and verified completion.
-4. Compare the source and received SHA-256 values with `shasum -a 256 <file>` on macOS/Linux or `Get-FileHash <file> -Algorithm SHA256` in PowerShell.
-5. Repeat the main flow in the Tkinter GUI.
+1. **Peer Discovery:** chạy Khang và Huong trên hai laptop cùng LAN; dùng `/list` và kiểm tra đúng tên, IP, port.
+2. **Online/Away:** đổi `/status away`, sau đó trở lại `/status online`; quan sát máy còn lại cập nhật mà không cần khởi động lại.
+3. **TCP Chat:** chọn peer bằng `/chat`, gửi Unicode và trao đổi hai chiều. Nếu có peer thứ ba, gửi tin khi cuộc trò chuyện đó chưa được chọn để kiểm tra unread.
+4. **File Transfer:** gửi file nhỏ và file lớn hơn 64 KiB, theo dõi tiến độ ở cả hai bên và kiểm tra file trong `downloads/`.
+5. **Concurrent Chat:** trong lúc file lớn đang truyền, tiếp tục gửi tin nhắn theo cả hai chiều.
+6. **SHA-256 Verification:** so sánh hash của file gốc và file đã nhận.
 
-Capture on the active LAN interface in Wireshark. Useful display filters for the example ports are:
+Trên macOS/Linux:
+
+```bash
+shasum -a 256 path/to/source-file
+shasum -a 256 downloads/received-file
+```
+
+Trên Windows PowerShell:
+
+```powershell
+Get-FileHash path\to\source-file -Algorithm SHA256
+Get-FileHash downloads\received-file -Algorithm SHA256
+```
+
+Hai chuỗi hash phải giống nhau. Đây là bước kiểm tra độc lập ngoài cơ chế SHA-256 nội bộ của chương trình.
+
+### 9.3. Kiểm tra bằng Wireshark
+
+Chọn interface Wi-Fi hoặc Ethernet đang nối LAN và bắt gói trước khi khởi động ứng dụng.
+
+**UDP Broadcast và Heartbeat:**
 
 ```text
 udp.port == 9999
-tcp.port == 5001 || tcp.port == 5002
-tcp.port == 5002 && (tcp.flags.syn == 1 || tcp.flags.ack == 1)
 ```
 
-Use the UDP filter to identify a broadcast presence datagram. For the TCP three-way handshake, follow one TCP stream and identify the consecutive SYN, SYN-ACK, and ACK packets. If different ports are selected, substitute the actual startup values. See the [Two-Computer Acceptance Checklist](docs/TWO_COMPUTER_ACCEPTANCE.md) and [Final Demo Script](docs/FINAL_DEMO_SCRIPT.md).
+Quan sát destination là địa chỉ Broadcast, payload bắt đầu bằng `HELLO|`, và các gói cùng peer xuất hiện khoảng mỗi 3 giây. Nếu dùng `--udp-port` khác, thay `9999` bằng cổng thực tế.
 
-## Troubleshooting
+**TCP Three-Way Handshake:**
 
-- **Peers are not discovered:** verify the same UDP port, same IPv4 LAN, firewall permission, correct network interface, and absence of guest-network/client isolation. Wait at least one heartbeat interval.
-- **TCP connection fails:** confirm the peer is still listed, its advertised TCP port is reachable, and inbound TCP is allowed. A stale entry can remain for up to 10 seconds.
-- **Dependencies cannot be installed:** confirm Python 3.10+ and an active virtual environment, then run `python -m pip install -r requirements.txt` again.
-- **Tkinter is unavailable:** use CLI mode or install a Python/Tk distribution pair that provides `_tkinter`; verify it with `python -m tkinter` before starting `--gui`.
+```text
+tcp.port == 5001 || tcp.port == 5002
+```
 
-## Verification Scope
+Đóng kết nối cũ hoặc khởi động lại peer, bắt đầu capture rồi chọn peer để tạo kết nối mới. Theo dõi một TCP stream và tìm ba packet `SYN`, `SYN-ACK`, `ACK` trước các frame ứng dụng. Có thể thu hẹp các packet bắt tay bằng:
 
-The repository does not contain the instructor's original assignment file. [Requirements Matrix](docs/requirements_matrix.md) records the project's existing interpretation, but it is not a newly verified transcription of the original brief. Current repository evidence also distinguishes automated/local loopback checks from physical two-computer, Windows, and genuine Wireshark validation; consult [Test Evidence](docs/test_evidence.md) for that boundary.
+```text
+(tcp.port == 5001 || tcp.port == 5002) && tcp.flags.syn == 1
+```
+
+Sau handshake, kiểm tra cùng TCP stream có dữ liệu ứng dụng; Wireshark sẽ hiển thị payload TCP chứ không tự giải mã protocol `LCHT`. Không dùng ảnh hoặc kết quả capture giả; kiểm thử Wireshark cần thực hiện trên môi trường demo thật.
+
+## 10. Một số lỗi thường gặp
+
+| Hiện tượng | Nguyên nhân thường gặp và cách kiểm tra |
+|---|---|
+| Hai máy không phát hiện nhau | Kiểm tra cùng mạng IPv4 LAN, cùng UDP port, firewall cho phép UDP, không dùng guest Wi-Fi/client isolation; VPN có thể chặn Broadcast. Chờ ít nhất một chu kỳ Heartbeat. |
+| Không kết nối được TCP | Kiểm tra peer còn trong `/list`, đúng TCP port, firewall cho phép inbound TCP và không có tiến trình khác chiếm cổng. Entry cũ có thể còn tối đa khoảng 10 giây. |
+| Thiếu dependency hoặc sai environment | Kích hoạt đúng `.venv`, kiểm tra `python --version`, rồi chạy lại `python -m pip install -r requirements.txt`. |
+| Không mở được GUI Tkinter | Chạy `python -m tkinter`. Nếu thiếu `_tkinter`, dùng CLI hoặc cài Python/Tk tương thích và tạo lại `.venv`. |

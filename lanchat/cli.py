@@ -1,4 +1,4 @@
-"""Command dispatch and a prompt that survives asynchronous notifications."""
+"""Xử lý lệnh CLI và giữ nguyên prompt khi có thông báo bất đồng bộ."""
 
 import threading
 
@@ -10,10 +10,11 @@ HELP = "/list, /chat <name|number>, /send <file>, /leave, /status <online|away>,
 
 
 class CLI:
-    """Backend callbacks are supplied by the application coordinator when ready."""
+    """Nhận callback từ Application để chuyển lệnh người dùng xuống backend."""
 
     def __init__(self, registry, discovery, on_chat=None, on_send=None,
                  on_leave=None, on_text=None, on_quit=None, session=None):
+        """Gắn registry, discovery và callback của Application vào CLI."""
         self.registry, self.discovery = registry, discovery
         self.on_chat, self.on_send = on_chat, on_send
         self.on_leave, self.on_text, self.on_quit = on_leave, on_text, on_quit
@@ -21,12 +22,12 @@ class CLI:
         self._output_lock = threading.Lock()
 
     def notify(self, message):
-        """Use for peer events, chat/unread notices and file progress."""
+        """Hiển thị event peer, chat và tiến độ an toàn giữa các thread."""
         with self._output_lock:
             print(message, flush=True)
 
     def handle(self, line):
-        """Process one line; return False only when /quit was requested."""
+        """Xử lý một dòng; chỉ trả về False khi người dùng yêu cầu /quit."""
         line = line.strip()
         if not line:
             return True
@@ -70,13 +71,15 @@ class CLI:
         return True
 
     def _call(self, callback, *args):
+        """Gọi tác vụ backend nếu đã được nối với CLI."""
         if callback is None:
             self.notify("This action is unavailable until the chat/file backend is connected.")
         else:
             callback(*args)
 
     def run(self):
-        """patch_stdout redraws the current prompt after another thread prints."""
+        """Chạy vòng lặp nhập lệnh cho đến khi người dùng thoát."""
+        # patch_stdout vẽ lại prompt và phần đang gõ sau khi thread khác in thông báo.
         with patch_stdout():
             try:
                 while self.handle(self.session.prompt("> ")):
