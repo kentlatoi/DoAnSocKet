@@ -1,4 +1,4 @@
-"""Small Tkinter front end for the existing LAN chat application."""
+"""Giao diện Tkinter cho các chức năng LAN Chat hiện có."""
 
 import queue
 import re
@@ -8,14 +8,19 @@ from tkinter import filedialog, ttk
 
 
 class GUI:
+    """Hiển thị peer, chat và transfer; nhận event backend qua queue."""
+
     def __init__(self, app, root=None):
+        """Tạo widget và nối callback backend vào Event Queue của GUI."""
         self.app = app
         self.root = root or tk.Tk()
         self.root.title(f"LAN Chat — {app.name}")
         self.root.geometry("760x480")
+        # Network thread chỉ đưa event vào queue; Tkinter main thread sẽ cập nhật widget.
         self.events = queue.Queue()
         self.app.gui_event = lambda kind, value: self.events.put((kind, value))
         self._closing = False
+        # Giữ snapshot peer đã từng thấy để vẫn hiển thị lịch sử khi offline.
         self._peers = {}
 
         frame = ttk.Frame(self.root, padding=12)
@@ -66,6 +71,7 @@ class GUI:
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
     def run(self):
+        """Khởi động Application rồi chạy vòng lặp Tkinter trên main thread."""
         try:
             self.app.start()
             self._refresh_peers()
@@ -75,6 +81,8 @@ class GUI:
             self.app.stop()
 
     def _worker(self, action):
+        """Chạy tác vụ mạng ở thread riêng và đưa lỗi về Event Queue."""
+        # Tác vụ socket chạy nền để GUI không bị đứng khi connect hoặc gửi dữ liệu.
         def run():
             try:
                 action()
@@ -83,6 +91,7 @@ class GUI:
         threading.Thread(target=run, daemon=True).start()
 
     def _select(self, _=None):
+        """Chọn peer, xem lịch sử; kết nối TCP ở worker khi cần."""
         selected = self.peers.selection()
         if not selected:
             return
@@ -112,6 +121,7 @@ class GUI:
         self._worker(connect)
 
     def _send(self, _=None):
+        """Gửi nội dung nhập tới đúng peer đang được chọn."""
         peer_id = self.app.chat.current_peer
         text = self.message.get().strip()
         if not peer_id or not text or self.peers.selection() != (peer_id,):
@@ -124,6 +134,7 @@ class GUI:
         self._worker(send)
 
     def _file(self):
+        """Mở hộp chọn file và yêu cầu backend gửi ở worker riêng."""
         if self.app.chat.current_peer is None:
             self.notice.set("Select a peer first")
             return
@@ -132,7 +143,9 @@ class GUI:
             self._worker(lambda: self.app.send_file(path))
 
     def _refresh_peers(self):
+        """Cập nhật status và unread, giữ peer offline để xem lịch sử."""
         online = {peer.peer_id: peer for peer in self.app.registry.list_peers() if peer.peer_id}
+        # Giữ peer offline trong phiên để người dùng vẫn xem được lịch sử chat.
         peers = {**self._peers, **online}
         for peer_id in self.peers.get_children():
             if peer_id not in peers:
@@ -147,6 +160,7 @@ class GUI:
                 self.peers.insert("", "end", iid=peer_id, text=peer.name, values=values)
 
     def _render(self, peer_id):
+        """Hiển thị lịch sử chat của peer đang chọn trong widget Text."""
         self.history.configure(state="normal")
         self.history.delete("1.0", "end")
         for message in self.app.chat.get_history(peer_id):
@@ -155,6 +169,8 @@ class GUI:
         self.history.see("end")
 
     def _drain(self):
+        """Xử lý Event Queue trên main thread để cập nhật widget an toàn."""
+        # Hàm này luôn chạy trên main thread thông qua root.after().
         while True:
             try:
                 kind, value = self.events.get_nowait()
@@ -184,11 +200,13 @@ class GUI:
             self.root.after(50, self._drain)
 
     def close(self):
+        """Dừng backend ở worker trước khi hủy cửa sổ Tkinter."""
         if self._closing:
             return
         self._closing = True
         self.notice.set("Closing…")
 
+        # Dừng backend ở thread riêng, sau đó mới hủy cửa sổ trên main thread.
         def stop():
             try:
                 self.app.stop()
@@ -198,6 +216,7 @@ class GUI:
         self._wait_for_stop()
 
     def _wait_for_stop(self):
+        """Đợi event dừng hoàn tất rồi hủy cửa sổ trên main thread."""
         while True:
             try:
                 kind, value = self.events.get_nowait()

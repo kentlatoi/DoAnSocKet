@@ -1,4 +1,4 @@
-"""File transfers over framed TCP connections."""
+"""Truyền file qua các frame trên TCP Connection đang hoạt động."""
 
 import hashlib
 import os
@@ -9,25 +9,30 @@ from pathlib import Path
 
 from .protocol import MessageType, ProtocolError, decode_json, encode_json
 
+# Mỗi FILE_CHUNK tối đa 64 KiB để có thể xen frame chat giữa các chunk.
 CHUNK_SIZE = 64 * 1024
 
 
 class TransferManager:
-    """Allow one outgoing and one incoming file per peer."""
+    """Cho phép một file gửi và một file nhận đồng thời trên mỗi peer."""
 
     def __init__(self, connections, downloads="downloads", notify=None):
+        """Theo dõi transfer hai chiều và đăng ký nhận frame, disconnect."""
         self.connections = connections
         self.downloads = Path(downloads)
         self.notify = notify or (lambda message: None)
         self._lock = threading.RLock()
+        # Khóa theo peer_id; mỗi chiều chỉ có một transfer hoạt động trên peer.
         self._incoming = {}
         self._outgoing = {}
+        # Theo dõi worker gửi và tín hiệu dừng để dọn file nhận dở.
         self._workers = set()
         self._stop = threading.Event()
         connections.add_message_handler(self.handle_frame)
         connections.add_disconnect_handler(self._disconnected)
 
     def send_file(self, peer_id, path):
+        """Kiểm tra file rồi chạy worker gửi riêng cho peer được chọn."""
         source = Path(path)
         if not source.is_file():
             raise ValueError(f"File not found or not a regular file: {path}")
@@ -41,20 +46,24 @@ class TransferManager:
             transfer_id = uuid.uuid4().hex
             done = threading.Event()
             self._outgoing[peer_id] = [transfer_id, done, None]
+            # Worker riêng giúp chat tiếp tục gửi frame giữa các file chunk.
             worker = threading.Thread(target=self._send, args=(peer_id, source, transfer_id, done), daemon=True)
             self._workers.add(worker)
             worker.start()
 
     def _send(self, peer_id, source, transfer_id, done):
+        """Gửi metadata, chunk và SHA-256; chờ ACK trước khi báo thành công."""
         try:
             size = source.stat().st_size
             digest = hashlib.sha256()
             with source.open("rb") as stream:
+                # FILE_META cho bên nhận biết tên, kích thước và mã transfer.
                 self.connections.send(peer_id, MessageType.FILE_META, encode_json({"transfer_id": transfer_id, "name": source.name, "size": size}))
                 sent, last_bucket = 0, -1
                 if size == 0:
                     self.notify(f"Sending {source.name}: 100% (awaiting verification)")
                 while not self._stop.is_set():
+                    # Chia file thành chunk để không giữ send_lock suốt cả file.
                     chunk = stream.read(CHUNK_SIZE)
                     if not chunk:
                         break
@@ -68,6 +77,7 @@ class TransferManager:
             if self._stop.is_set():
                 raise RuntimeError("Transfer stopped")
             self.connections.send(peer_id, MessageType.FILE_END, encode_json({"transfer_id": transfer_id, "sha256": digest.hexdigest()}))
+            # Chỉ báo thành công sau khi receiver xác minh và gửi ACK đúng transfer_id.
             if not done.wait(30):
                 raise TimeoutError("Receiver did not confirm the file")
             with self._lock:
@@ -83,6 +93,7 @@ class TransferManager:
                 self._workers.discard(threading.current_thread())
 
     def handle_frame(self, peer_id, frame):
+        """Xử lý metadata, chunk, kết thúc file hoặc ACK trên TCP stream."""
         kind = frame.message_type
         if kind not in (MessageType.FILE_META, MessageType.FILE_CHUNK, MessageType.FILE_END, MessageType.ERROR):
             return
@@ -100,6 +111,7 @@ class TransferManager:
                     raise ProtocolError("File transfer already active")
                 try:
                     self.downloads.mkdir(parents=True, exist_ok=True)
+                    # Ghi vào .part để file chưa hoàn chỉnh không xuất hiện dưới tên cuối.
                     stream = tempfile.NamedTemporaryFile(dir=self.downloads, suffix=".part", delete=False)
                 except OSError as error:
                     raise ProtocolError(f"Cannot save incoming file: {error}") from error
@@ -139,6 +151,7 @@ class TransferManager:
                 if state is None or state[0] != transfer_id:
                     raise ProtocolError("FILE_END without matching FILE_META")
                 if not isinstance(data.get("sha256"), str) or state[3] != state[2] or state[4].hexdigest() != data["sha256"]:
+                    # Kích thước hoặc SHA-256 sai: xóa file tạm và báo lỗi cho sender.
                     self._abort(peer_id)
                     self.connections.send(peer_id, MessageType.ERROR, encode_json({"transfer_id": transfer_id, "error": "size or checksum mismatch"}))
                     return
@@ -147,6 +160,7 @@ class TransferManager:
                     stream.close()
                     destination = self.downloads / state[1]
                     number = 1
+                    # Tạo hậu tố tăng dần để không ghi đè file đã tồn tại.
                     while True:
                         try:
                             os.link(stream.name, destination)
@@ -165,12 +179,15 @@ class TransferManager:
             self.notify(f"File received and verified: {destination}")
 
     def _abort(self, peer_id):
+        """Đóng và xóa file .part của transfer nhận không hoàn chỉnh."""
+        # Mọi đường truyền thất bại đều đóng stream và xóa file .part.
         state = self._incoming.pop(peer_id, None)
         if state:
             state[5].close()
             Path(state[5].name).unlink(missing_ok=True)
 
     def _disconnected(self, peer_id, error):
+        """Dọn file nhận dở và đánh thức worker gửi khi TCP bị ngắt."""
         with self._lock:
             self._abort(peer_id)
             outgoing = self._outgoing.get(peer_id)
@@ -179,6 +196,7 @@ class TransferManager:
                 outgoing[1].set()
 
     def stop(self):
+        """Đánh thức worker gửi, xóa file nhận dở và chờ worker dừng."""
         self._stop.set()
         with self._lock:
             for outgoing in self._outgoing.values():

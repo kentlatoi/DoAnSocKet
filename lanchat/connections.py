@@ -1,4 +1,4 @@
-"""Threaded TCP listener and multi-peer connection manager."""
+"""TCP listener có thread và trình quản lý kết nối tới nhiều peer."""
 
 from __future__ import annotations
 
@@ -18,34 +18,43 @@ from .protocol import (
     recv_frame,
 )
 
+# Callback nhận peer_id và Frame đã tách từ TCP stream.
 MessageHandler = Callable[[str, Frame], None]
+# Callback báo peer_id khi connection mới được đăng ký.
 ConnectionHandler = Callable[[str], None]
+# Callback báo peer_id và lỗi nếu connection bị đóng do sự cố.
 DisconnectHandler = Callable[[str, Exception | None], None]
 
 
 class ConnectionManagerError(RuntimeError):
-    """Base error for connection lifecycle failures."""
+    """Lỗi chung trong vòng đời TCP Connection."""
 
 
 class NotConnectedError(ConnectionManagerError):
-    """Raised when sending to a peer without an active connection."""
+    """Lỗi khi gửi cho peer chưa có kết nối hoạt động."""
 
 
+# Trạng thái một TCP stream; slots giảm bộ nhớ, thuộc tính vẫn thay đổi được.
 @dataclass(slots=True)
 class PeerConnection:
+    """Giữ socket và send Lock của một TCP Connection tới peer."""
     peer_id: str
     peer_name: str
     sock: socket.socket
     address: tuple[str, int]
-    outgoing: bool
+    outgoing: bool  # Phân biệt chiều kết nối khi hai phía cùng connect.
+    # default_factory tạo Lock riêng cho từng socket, không dùng chung giữa các peer.
     send_lock: threading.Lock = field(default_factory=threading.Lock)
 
     def send(self, message_type: MessageType, payload: bytes = b"") -> None:
+        """Gửi trọn một frame dưới send Lock riêng của connection."""
         data = encode_frame(message_type, payload)
+        # Khóa theo connection để các thread không ghi xen byte của hai frame.
         with self.send_lock:
             self.sock.sendall(data)
 
     def close(self) -> None:
+        """Shutdown hai chiều và đóng socket khi connection không còn dùng."""
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
         except OSError:
@@ -54,11 +63,10 @@ class PeerConnection:
 
 
 class ConnectionManager:
-    """Accept, initiate, deduplicate, and monitor peer TCP connections.
+    """Nhận, tạo, loại kết nối trùng và theo dõi các TCP Connection.
 
-    Simultaneous connections use a deterministic rule: the peer with the
-    lexicographically smaller ID keeps its outgoing socket; the other keeps
-    its incoming socket. This leaves exactly one stream for each peer pair.
+    Khi hai peer cùng kết nối, peer có ID nhỏ hơn giữ socket outgoing và peer
+    còn lại giữ socket incoming. Hai phía vì vậy cùng chọn đúng một TCP stream.
     """
 
     def __init__(
@@ -70,6 +78,7 @@ class ConnectionManager:
         *,
         connect_timeout: float = 5.0,
     ) -> None:
+        """Thiết lập TCP listener, bảng kết nối theo peer_id và callback."""
         if not peer_id or not peer_name:
             raise ValueError("peer_id and peer_name are required")
         self.peer_id = peer_id
@@ -78,10 +87,13 @@ class ConnectionManager:
         self.port = port
         self.connect_timeout = connect_timeout
         self._listener: socket.socket | None = None
+        # Mỗi peer_id chỉ giữ một TCP stream đang hoạt động.
         self._connections: dict[str, PeerConnection] = {}
         self._lock = threading.RLock()
+        # Event dừng và tập worker để đóng socket, chờ thread khi shutdown.
         self._stop = threading.Event()
         self._threads: set[threading.Thread] = set()
+        # Các subscriber nhận frame, kết nối mới hoặc ngắt kết nối.
         self._message_handlers: list[MessageHandler] = []
         self._connect_handlers: list[ConnectionHandler] = []
         self._disconnect_handlers: list[DisconnectHandler] = []
@@ -99,7 +111,7 @@ class ConnectionManager:
             self._disconnect_handlers.append(handler)
 
     def start(self) -> int:
-        """Start listening and return the actual TCP port."""
+        """Bắt đầu lắng nghe và trả về TCP port thực tế."""
 
         with self._lock:
             if self._listener is not None:
@@ -122,12 +134,13 @@ class ConnectionManager:
     def connect(
         self, host: str, port: int, expected_peer_id: str | None = None
     ) -> PeerConnection:
-        """Connect to a discovered endpoint and complete the HELLO handshake."""
+        """Kết nối endpoint đã discover và hoàn tất HELLO ở tầng ứng dụng."""
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(self.connect_timeout)
         try:
             sock.connect((host, port))
+            # HELLO gắn TCP stream với peer_id đã nhận qua UDP Discovery.
             sock.sendall(encode_frame(MessageType.HELLO, self._hello_payload()))
             peer_id, peer_name = self._parse_hello(recv_frame(sock))
             if peer_id == self.peer_id:
@@ -159,6 +172,7 @@ class ConnectionManager:
     def send(
         self, peer_id: str, message_type: MessageType, payload: bytes = b""
     ) -> None:
+        """Gửi frame tới peer đang kết nối; loại connection nếu socket lỗi."""
         with self._lock:
             connection = self._connections.get(peer_id)
         if connection is None:
@@ -170,6 +184,7 @@ class ConnectionManager:
             raise ConnectionManagerError(f"send to {peer_id!r} failed") from exc
 
     def disconnect(self, peer_id: str) -> None:
+        """Chủ động đóng connection của peer và phát callback ngắt kết nối."""
         with self._lock:
             connection = self._connections.pop(peer_id, None)
         if connection is not None:
@@ -185,7 +200,7 @@ class ConnectionManager:
             return list(self._connections)
 
     def stop(self) -> None:
-        """Stop accepting, close all streams, and wait briefly for workers."""
+        """Ngừng accept, đóng mọi stream và chờ ngắn các worker kết thúc."""
 
         self._stop.set()
         with self._lock:
@@ -202,10 +217,12 @@ class ConnectionManager:
                 thread.join(timeout=1.0)
 
     def _hello_payload(self) -> bytes:
+        """Mã hóa peer_id và tên cho HELLO ở tầng ứng dụng."""
         return encode_json({"peer_id": self.peer_id, "name": self.peer_name})
 
     @staticmethod
     def _parse_hello(frame: Frame) -> tuple[str, str]:
+        """Kiểm tra HELLO đầu tiên và lấy định danh peer từ Payload."""
         if frame.message_type is not MessageType.HELLO:
             raise ProtocolError("first frame must be HELLO")
         data = decode_json(frame.payload)
@@ -217,6 +234,8 @@ class ConnectionManager:
         return peer_id, name
 
     def _accept_loop(self) -> None:
+        """Nhận TCP Connection mới và giao handshake cho worker riêng."""
+        # Mỗi connection đến được giao cho worker riêng để accept loop không bị chặn.
         while not self._stop.is_set():
             listener = self._listener
             if listener is None:
@@ -233,6 +252,7 @@ class ConnectionManager:
             )
 
     def _accept_connection(self, sock: socket.socket, address: tuple[str, int]) -> None:
+        """Trao đổi HELLO với bên kết nối tới rồi đăng ký stream hợp lệ."""
         try:
             sock.settimeout(self.connect_timeout)
             peer_id, peer_name = self._parse_hello(recv_frame(sock))
@@ -255,6 +275,7 @@ class ConnectionManager:
                 pass
 
     def _register(self, candidate: PeerConnection) -> tuple[PeerConnection, bool]:
+        """Giữ một stream cho mỗi peer_id khi hai phía cùng kết nối."""
         old_to_close: PeerConnection | None = None
         notify = False
         with self._lock:
@@ -263,6 +284,7 @@ class ConnectionManager:
                 self._connections[candidate.peer_id] = candidate
                 notify = True
             elif self._is_preferred(candidate) and not self._is_preferred(existing):
+                # Quy tắc cố định giúp hai phía loại cùng một connection bị trùng.
                 self._connections[candidate.peer_id] = candidate
                 old_to_close = existing
             else:
@@ -274,11 +296,14 @@ class ConnectionManager:
         return candidate, True
 
     def _is_preferred(self, connection: PeerConnection) -> bool:
+        """Dùng thứ tự peer_id để hai phía chọn cùng một stream."""
         return connection.outgoing == (self.peer_id < connection.peer_id)
 
     def _receive_loop(self, connection: PeerConnection) -> None:
+        """Đọc frame liên tục và chuyển đến ChatManager, TransferManager."""
         error: Exception | None = None
         try:
+            # Một receive worker liên tục tách frame cho mỗi TCP Connection.
             while not self._stop.is_set():
                 frame = recv_frame(connection.sock)
                 if frame.message_type is MessageType.HELLO:
@@ -293,16 +318,19 @@ class ConnectionManager:
             self._drop(connection, error)
 
     def _drop(self, connection: PeerConnection, error: Exception | None) -> None:
+        """Gỡ đúng stream đã lỗi, tránh xóa stream mới thay thế nó."""
         removed = False
         with self._lock:
             if self._connections.get(connection.peer_id) is connection:
                 del self._connections[connection.peer_id]
                 removed = True
         connection.close()
+        # Chỉ phát disconnect nếu đây vẫn là connection đang được đăng ký.
         if removed and not self._stop.is_set():
             self._notify_disconnect(connection.peer_id, error)
 
     def _spawn(self, target: Callable[[], None], name: str) -> None:
+        """Chạy worker daemon và bỏ khỏi danh sách khi hoàn thành."""
         def run() -> None:
             try:
                 target()
@@ -316,12 +344,14 @@ class ConnectionManager:
         thread.start()
 
     def _notify_connect(self, peer_id: str) -> None:
+        """Gọi các callback kết nối ngoài Lock của bảng connection."""
         with self._lock:
             handlers = list(self._connect_handlers)
         for handler in handlers:
             handler(peer_id)
 
     def _notify_disconnect(self, peer_id: str, error: Exception | None) -> None:
+        """Gọi các callback ngắt kết nối để dọn transfer và báo giao diện."""
         with self._lock:
             handlers = list(self._disconnect_handlers)
         for handler in handlers:
