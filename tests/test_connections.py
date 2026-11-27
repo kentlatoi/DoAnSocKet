@@ -126,8 +126,12 @@ class ConnectionManagerTests(unittest.TestCase):
         wait_until(lambda: alice.connected_peers() == ["bob"])
         wait_until(lambda: bob.connected_peers() == ["alice"])
         self.assertEqual(errors, [])
-        self.assertTrue(alice.get_connection("bob").outgoing)
-        self.assertFalse(bob.get_connection("alice").outgoing)
+        alice_connection = alice.get_connection("bob")
+        bob_connection = bob.get_connection("alice")
+        assert alice_connection is not None
+        assert bob_connection is not None
+        self.assertTrue(alice_connection.outgoing)
+        self.assertFalse(bob_connection.outgoing)
 
     def test_send_to_missing_peer_is_reported(self) -> None:
         alice = self.manager("alice")

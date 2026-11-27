@@ -11,7 +11,7 @@ class Link:
     def __init__(self):
         self.handlers = []
         self.disconnect_handlers = []
-        self.other = None
+        self.other: Link | None = None
 
     def add_message_handler(self, handler):
         self.handlers.append(handler)
@@ -20,7 +20,9 @@ class Link:
         self.disconnect_handlers.append(handler)
 
     def send(self, peer_id, kind, payload=b""):
-        for handler in self.other.handlers:
+        other = self.other
+        assert other is not None
+        for handler in other.handlers:
             handler("sender" if peer_id == "receiver" else "receiver", Frame(kind, payload))
 
 
@@ -32,8 +34,8 @@ class TransferTests(unittest.TestCase):
         a, b = Link(), Link()
         a.other, b.other = b, a
         self.sender_events, self.receiver_events = [], []
-        self.sender = TransferManager(a, self.root / "unused", self.sender_events.append)
-        self.receiver = TransferManager(b, self.root / "downloads", self.receiver_events.append)
+        self.sender = TransferManager(a, str(self.root / "unused"), self.sender_events.append)
+        self.receiver = TransferManager(b, str(self.root / "downloads"), self.receiver_events.append)
         self.addCleanup(self.sender.stop)
         self.addCleanup(self.receiver.stop)
 
