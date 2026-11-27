@@ -4,6 +4,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from lanchat.app import Application
 from lanchat.peer_registry import Peer
@@ -24,14 +25,18 @@ class ApplicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             nodes = [Application(name, udp_port=18101 + index,
                                  broadcast_address="127.0.0.1",
-                                 downloads=Path(folder) / name)
+                                 downloads=str(Path(folder) / name))
                      for index, name in enumerate(("Alice", "Bob", "Carol"))]
             for node in nodes:
                 self.addCleanup(node.stop)
                 node.start()
             alice, bob, carol = nodes
             notices = []
-            alice.cli.notify = notices.append
+            cli = alice.cli
+            self.assertIsNotNone(cli)
+            notify_patch = patch.object(cli, "notify", side_effect=notices.append)
+            notify_patch.start()
+            self.addCleanup(notify_patch.stop)
             for remote in (bob, carol):
                 alice.select_peer(alice.registry.update(remote.name, "127.0.0.1",
                                                         remote.connections.port, "online",
@@ -58,15 +63,17 @@ class ApplicationTests(unittest.TestCase):
 
     def test_two_peer_chat_file_and_identity(self):
         with tempfile.TemporaryDirectory() as folder:
-            a = Application("Alice", udp_port=18001, broadcast_address="127.0.0.1", downloads=Path(folder) / "a")
-            b = Application("Bob", udp_port=18002, broadcast_address="127.0.0.1", downloads=Path(folder) / "b")
+            a = Application("Alice", udp_port=18001, broadcast_address="127.0.0.1", downloads=str(Path(folder) / "a"))
+            b = Application("Bob", udp_port=18002, broadcast_address="127.0.0.1", downloads=str(Path(folder) / "b"))
             self.addCleanup(a.stop)
             self.addCleanup(b.stop)
             a.start()
             b.start()
             self.assertEqual(a.peer_id, a.connections.peer_id)
-            self.assertEqual(a.peer_id, a.discovery.peer_id)
-            self.assertEqual(a.connections.port, a.discovery.tcp_port)
+            discovery = a.discovery
+            assert discovery is not None
+            self.assertEqual(a.peer_id, discovery.peer_id)
+            self.assertEqual(a.connections.port, discovery.tcp_port)
             peer = a.registry.update("Bob", "127.0.0.1", b.connections.port, "online", peer_id=b.peer_id)
             wrong = Peer("Wrong", "127.0.0.1", b.connections.port, "online", 0, "wrong-id")
             a.select_peer(wrong)
