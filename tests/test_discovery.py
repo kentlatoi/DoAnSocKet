@@ -103,6 +103,7 @@ class SocketTests(unittest.TestCase):
                 time.sleep(0.05)
             self.assertTrue(second_registry.list_peers())
             seen = second_registry.list_peers()[0].last_seen
+            current = seen
             deadline = time.monotonic() + 4
             while time.monotonic() < deadline:
                 current = second_registry.list_peers()[0].last_seen

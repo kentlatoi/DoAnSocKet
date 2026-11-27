@@ -3,6 +3,7 @@
 import threading
 import time
 import unittest
+from unittest.mock import patch
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.input import create_pipe_input
@@ -34,7 +35,9 @@ class CLITests(unittest.TestCase):
                        on_quit=lambda: self.calls.append(("quit",)),
                        session=object())
         self.messages = []
-        self.cli.notify = self.messages.append
+        notify_patch = patch.object(self.cli, "notify", side_effect=self.messages.append)
+        notify_patch.start()
+        self.addCleanup(notify_patch.stop)
 
     def test_commands(self):
         for line in ("/list", "/chat A", "/chat 1", "/send file.txt",
@@ -59,10 +62,9 @@ class CLITests(unittest.TestCase):
     def test_unavailable_backend_and_concurrent_notifications(self):
         cli = CLI(self.registry, self.discovery, session=object())
         messages = []
-        cli.notify = messages.append
-        cli.handle("/send file.txt")
+        with patch.object(cli, "notify", side_effect=messages.append):
+            cli.handle("/send file.txt")
         self.assertIn("unavailable", messages[0])
-        cli.notify = CLI.notify.__get__(cli)
         threads = [threading.Thread(target=cli.notify, args=(f"notice {i}",))
                    for i in range(10)]
         for thread in threads:

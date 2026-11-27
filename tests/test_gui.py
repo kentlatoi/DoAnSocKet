@@ -18,11 +18,13 @@ class GUITests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         tkinter = types.ModuleType("tkinter")
-        tkinter.filedialog = types.ModuleType("tkinter.filedialog")
-        tkinter.ttk = types.ModuleType("tkinter.ttk")
+        filedialog = types.ModuleType("tkinter.filedialog")
+        ttk = types.ModuleType("tkinter.ttk")
+        setattr(tkinter, "filedialog", filedialog)
+        setattr(tkinter, "ttk", ttk)
         with patch.dict(sys.modules, {"tkinter": tkinter,
-                                      "tkinter.filedialog": tkinter.filedialog,
-                                      "tkinter.ttk": tkinter.ttk}):
+                                      "tkinter.filedialog": filedialog,
+                                      "tkinter.ttk": ttk}):
             cls.GUI = importlib.import_module("lanchat.gui").GUI
 
     def test_network_events_are_drained_on_gui_thread(self):
@@ -65,23 +67,27 @@ class GUITests(unittest.TestCase):
     def test_backend_forwards_chat_to_gui_without_cli_output(self):
         app = Application("Alice")
         events = []
-        app.gui_event = lambda kind, value: events.append((kind, value))
         message = ChatMessage("bob", "Bob", "hello", "now", True)
         event = ChatEvent(message, 1)
 
-        app._chat_event(event)
-        app.notify("Receiving file.bin: 40%")
+        with patch.object(app, "gui_event", side_effect=lambda kind, value: events.append((kind, value))):
+            app._chat_event(event)
+            app.notify("Receiving file.bin: 40%")
 
         self.assertEqual(events, [("chat", event), ("notice", "Receiving file.bin: 40%")])
 
     def test_gui_event_bridge_receives_cli_peer_message(self):
         with tempfile.TemporaryDirectory() as folder:
             gui = Application("GUI", udp_port=18121, broadcast_address="127.0.0.1",
-                              downloads=Path(folder) / "gui")
+                              downloads=str(Path(folder) / "gui"))
             cli = Application("CLI", udp_port=18122, broadcast_address="127.0.0.1",
-                              downloads=Path(folder) / "cli")
+                              downloads=str(Path(folder) / "cli"))
             events = []
-            gui.gui_event = lambda kind, value: events.append((kind, value))
+            gui_event_patch = patch.object(
+                gui, "gui_event", side_effect=lambda kind, value: events.append((kind, value))
+            )
+            gui_event_patch.start()
+            self.addCleanup(gui_event_patch.stop)
             self.addCleanup(gui.stop)
             self.addCleanup(cli.stop)
             gui.start()
